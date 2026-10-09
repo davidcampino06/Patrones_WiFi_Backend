@@ -44,7 +44,7 @@ public class UserService {
         if (users.existsByUsernameIgnoreCase(request.username())) {
             throw new DuplicateResourceException("Ese nombre de usuario ya existe.");
         }
-        User user = new User(request.username(), request.username() + "@wifisense.local",
+        User user = new User(request.username(), PasswordPolicy.emailFor(request.username()),
                 passwordEncoder.encode(request.password()), request.role());
         return UserResponse.from(users.save(user));
     }

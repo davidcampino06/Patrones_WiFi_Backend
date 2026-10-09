@@ -50,7 +50,7 @@ public class AdminAccountInitializer implements ApplicationRunner {
         }
 
         User admin = users.findByUsername(username)
-                .orElseGet(() -> new User(username, username + "@wifisense.local", encoder.encode(password), User.Role.ADMIN));
+                .orElseGet(() -> new User(username, PasswordPolicy.emailFor(username), encoder.encode(password), User.Role.ADMIN));
         if (!encoder.matches(password, admin.getPasswordHash())) {
             admin.changePassword(encoder.encode(password));
         }
