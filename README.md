@@ -10,7 +10,7 @@ Frontend ──HTTP/REST + JWT──► Backend ──JDBC──► PostgreSQL (
 
 ## Tecnologías
 
-Java 25 (LTS) · Spring Boot 3.5 · Spring Web · Spring Data JPA / Hibernate · Bean Validation · Spring Security
+Java 21 · Spring Boot 3.5 · Spring Web · Spring Data JPA / Hibernate · Bean Validation · Spring Security
 (OAuth2 Resource Server con JWT HS256) · PostgreSQL JDBC · Actuator · JUnit 5 · Mockito · AssertJ · Maven
 
 ## Arquitectura
@@ -74,7 +74,7 @@ Errores: `application/problem+json` con `detail` y, en validación, `errors` por
 - **Sin registro público.** Solo el administrador crea cuentas, con un máximo de 3 (`wifisense.accounts.max-users`).
 - **Contraseñas:** se guardan solo como hash **BCrypt**; nunca se devuelven ni se registran en logs. Política
   (`PasswordPolicy`): 10 a 12 caracteres, al menos una mayúscula, un número y un carácter especial, sin espacios.
-- **Usuario:** 3 a 20 caracteres (letras, números, `.`, `-`, `_`).
+- **Usuario:** 3 a 40 caracteres: un correo (`ana@campus.edu.co`) o un nombre (letras, números, `.`, `-`, `_`).
 - **Login:** cualquier fallo responde lo mismo, `Datos incorrectos.`; entradas fuera de los límites se rechazan sin
   consultar la base de datos. Tras 5 fallos del mismo usuario y dirección (o 20 de una misma dirección) se bloquea
   10 minutos (`LoginAttemptService`).

@@ -29,10 +29,18 @@ class PasswordPolicyTest {
     }
 
     @Test
-    void usernameIsLimitedTo20SafeCharacters() {
+    void usernameIsANameOrAnEmailUpTo40Characters() {
         assertThat(policy.usernameViolations("jaider.ch")).isEmpty();
-        assertThat(policy.usernameViolations("a".repeat(21))).hasSize(1);
+        assertThat(policy.usernameViolations("jaider.chindoy@campusucc.edu.co")).isEmpty();
+        assertThat(policy.usernameViolations("a".repeat(41))).hasSize(1);
+        assertThat(policy.usernameViolations("a@b@c.com")).hasSize(1);
         assertThat(policy.usernameViolations("<script>")).hasSize(1);
+    }
+
+    @Test
+    void emailUsernamesAreAlsoTheAccountEmail() {
+        assertThat(PasswordPolicy.emailFor("ana@uni.edu.co")).isEqualTo("ana@uni.edu.co");
+        assertThat(PasswordPolicy.emailFor("ana")).isEqualTo("ana@wifisense.local");
     }
 
     @Test

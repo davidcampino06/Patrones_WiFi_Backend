@@ -10,11 +10,11 @@ import java.util.regex.Pattern;
 @Component
 public class PasswordPolicy {
 
-    public static final int USERNAME_MAX = 20;
+    public static final int USERNAME_MAX = 40;
     public static final int PASSWORD_MIN = 10;
     public static final int PASSWORD_MAX = 12;
 
-    private static final Pattern USERNAME = Pattern.compile("^[A-Za-z0-9._-]{3," + USERNAME_MAX + "}$");
+    private static final Pattern USERNAME = Pattern.compile("^(?=.{3," + USERNAME_MAX + "}$)[A-Za-z0-9._-]+(@[A-Za-z0-9.-]+)?$");
     private static final Pattern UPPERCASE = Pattern.compile("[A-ZÁÉÍÓÚÑ]");
     private static final Pattern DIGIT = Pattern.compile("\\d");
     private static final Pattern SPECIAL = Pattern.compile("[^A-Za-z0-9ÁÉÍÓÚÑáéíóúñ\\s]");
@@ -22,7 +22,7 @@ public class PasswordPolicy {
     public List<String> usernameViolations(String username) {
         if (username == null || !USERNAME.matcher(username).matches()) {
             return List.of("El usuario debe tener entre 3 y " + USERNAME_MAX
-                    + " caracteres y solo puede usar letras, números, punto, guion o guion bajo.");
+                    + " caracteres: un correo o un nombre con letras, números, punto, guion o guion bajo.");
         }
         return List.of();
     }
@@ -49,6 +49,11 @@ public class PasswordPolicy {
     }
 
     /** Cheap shape check before touching the database; anything outside the limits is simply a failed login. */
+    /** The username itself when it is an email address; otherwise an internal placeholder address. */
+    public static String emailFor(String username) {
+        return username.contains("@") ? username : username + "@wifisense.local";
+    }
+
     public boolean isPlausibleLogin(String username, String password) {
         return username != null && !username.isBlank() && username.length() <= USERNAME_MAX
                 && password != null && !password.isEmpty() && password.length() <= PASSWORD_MAX;
