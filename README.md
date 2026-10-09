@@ -1,0 +1,122 @@
+# WiFiSense-backend
+
+API REST en Java + Spring Boot. Es el **único intermediario** del sistema: el frontend solo habla con este servicio,
+y este servicio es el único que accede a PostgreSQL y al servicio de IA.
+
+```text
+Frontend ──HTTP/REST + JWT──► Backend ──JDBC──► PostgreSQL (WiFiSense-database)
+                                 └─────HTTP + API key──► IA (WiFiSense-ai)
+```
+
+## Tecnologías
+
+Java 21 · Spring Boot 3.5 · Spring Web · Spring Data JPA / Hibernate · Bean Validation · Spring Security
+(OAuth2 Resource Server con JWT HS256) · PostgreSQL JDBC · Actuator · JUnit 5 · Mockito · AssertJ · Maven
+
+## Arquitectura
+
+| Paquete | Responsabilidad |
+|---|---|
+| `controller` | Endpoints REST y manejo global de errores (RFC 7807). Sin lógica de negocio. |
+| `dto` | Records de entrada (validados) y salida. Las entidades nunca salen por la API. |
+| `model` | Entidades JPA con comportamiento de dominio (`Network.applyDetectedStatus`, `Alert.resolve`). |
+| `repository` | Interfaces Spring Data. |
+| `service` | Casos de uso: redes, dispositivos, mediciones, alertas, reportes, monitoreo programado. |
+| `network` | Fuentes de datos (Factory Method), `decorator/` (Decorator) y `state/` (State). |
+| `analysis` | Estrategias de análisis (Strategy), cliente de IA y `NetworkAnalysisFacade` (Facade). |
+| `event` | Eventos y observadores (Observer). |
+| `security` | JWT, carga de usuarios, reglas de autorización y CORS. |
+| `config` | Beans transversales (`Clock`). |
+
+Los patrones, el problema que resuelve cada uno y los que se descartaron están en **[PATTERNS.md](PATTERNS.md)**.
+
+## POO y SOLID en el código
+
+- **Encapsulación:** las entidades no tienen setters públicos; el estado cambia con métodos de dominio que
+  validan las transiciones (`Alert.acknowledge()` falla si la alerta no está abierta).
+- **Abstracción / polimorfismo:** `NetworkDataSource`, `AnalysisStrategy`, `NetworkState`, `NetworkEventListener`.
+- **Composición sobre herencia:** los decoradores envuelven fuentes; la fachada compone estrategias y servicios.
+  La herencia se usa solo donde hay una relación "es un" real (`DataSourceDecorator`, `DataSourceCreator`).
+- **S:** lectura (`MeasurementService`) y escritura (`MeasurementCollectionService`) separadas; validación,
+  logs y métricas en decoradores distintos.
+- **O:** nuevas fuentes, estrategias u observadores se agregan como clases nuevas.
+- **L:** cualquier `AnalysisStrategy` o `NetworkDataSource` funciona donde se espera la interfaz (probado en tests).
+- **I:** interfaces de 1–3 métodos.
+- **D:** la fachada depende de `AnalysisStrategy` y `AiAnalysisClient`, no de implementaciones; todo por constructor.
+
+## API
+
+Todas las rutas `/api/**` requieren `Authorization: Bearer <token>` salvo login y registro.
+
+| Método | Ruta | Rol |
+|---|---|---|
+| POST | `/api/auth/login`, `/api/auth/register` | público (registro crea VIEWER) |
+| GET | `/api/auth/me` | autenticado |
+| GET / PATCH | `/api/users`, `/api/users/{id}/role` | ADMIN |
+| GET / POST | `/api/locations`, `/api/locations/{id}/zones`, `/api/zones` | GET autenticado · POST ADMIN |
+| GET / POST / PUT / DELETE | `/api/networks[/{id}]` | GET autenticado · resto ADMIN |
+| GET / POST | `/api/devices`, `/api/devices/{id}/sessions` | GET autenticado · POST ADMIN |
+| GET | `/api/networks/{id}/measurements?from&to&limit` | autenticado |
+| POST | `/api/networks/{id}/measurements/collect` | ADMIN, ANALYST |
+| GET | `/api/networks/{id}/traffic`, `/api/networks/{id}/protocols` | autenticado |
+| POST | `/api/networks/{id}/analyses` `{"type":"THRESHOLD|STATISTICAL|ANOMALY_DETECTION"}` | ADMIN, ANALYST |
+| GET | `/api/analyses?networkId&limit`, `/api/analyses/strategies`, `/api/anomalies` | autenticado |
+| GET / PATCH | `/api/alerts?status`, `/api/alerts/{id}/acknowledge`, `/api/alerts/{id}/resolve` | GET autenticado · PATCH ADMIN, ANALYST |
+| GET | `/api/dashboard/summary`, `/api/observability/data-sources`, `/api/observability/activity` | autenticado |
+| GET | `/api/reports/networks/{id}?from&to`, `/api/reports/comparison?networkIds=1,2` | autenticado |
+| GET | `/actuator/health` | público |
+
+Errores: `application/problem+json` con `detail` y, en validación, `errors` por campo.
+
+## Base de datos
+
+El esquema pertenece a **WiFiSense-database** (migraciones Flyway). Este servicio no crea ni altera tablas
+(`ddl-auto: none`); aplica primero las migraciones de ese repositorio.
+
+## Integración con la IA
+
+`AnomalyDetectionStrategy` arma la ventana de mediciones (más el tráfico cruzado por timestamp) y la envía con
+`HttpAiAnalysisClient` a `POST {AI_SERVICE_URL}/api/v1/anomalies/detect` con la cabecera `X-API-Key`. La respuesta
+se guarda en `ai_predictions` y marca si los datos eran simulados. Si la IA no responde, la API devuelve 503 y las
+estrategias de umbrales y estadística siguen funcionando.
+
+## Variables de entorno
+
+| Variable | Ejemplo | Uso |
+|---|---|---|
+| `DATABASE_URL` | `jdbc:postgresql://localhost:5432/wifisense` | Conexión JDBC (formato `jdbc:`) |
+| `DATABASE_USERNAME` / `DATABASE_PASSWORD` | | Credenciales |
+| `AI_SERVICE_URL` | `http://localhost:8000` | URL interna del servicio de IA |
+| `AI_API_KEY` | | Debe coincidir con la del servicio de IA |
+| `JWT_SECRET` | 32+ caracteres aleatorios | Firma de tokens; el arranque falla si falta |
+| `CORS_ALLOWED_ORIGINS` | `http://localhost:5173` | Orígenes del frontend, separados por coma |
+| `MONITORING_ENABLED` | `true` | Recolección y análisis automáticos |
+
+Copia `.env.example`, complétalo y expórtalo en tu terminal o IDE. Nunca subas `.env`.
+
+## Ejecución
+
+```bash
+# 1. Base de datos lista con las migraciones de WiFiSense-database
+# 2. Servicio de IA en ejecución (opcional para THRESHOLD/STATISTICAL)
+export $(grep -v '^#' .env | xargs)
+mvn spring-boot:run          # API en http://localhost:8080
+mvn test                     # pruebas unitarias y de controladores
+docker build -t wifisense-backend .
+```
+
+Usuarios de demostración (sembrados por WiFiSense-database): `admin`, `analyst`, `viewer` con la contraseña
+indicada en `seeds/seed_data.sql`. Cámbiala fuera del entorno local.
+
+## Pruebas
+
+`src/test/java` (convención Maven): fuentes de datos y decoradores, transiciones de estado, las tres estrategias,
+la fachada con mocks, observadores, ciclo de vida de alertas y un `@WebMvcTest` que verifica seguridad por rol,
+validación y errores 404.
+
+## Pendiente (≈20 %)
+
+Fuentes Router API (con Adapter por fabricante), SNMP y captura de tráfico; refresh tokens; pruebas de integración
+con Testcontainers; pruebas de carga y seguridad avanzadas; paginación completa en listados.
+
+Despliegue: ver [DEPLOYMENT.md](DEPLOYMENT.md).
