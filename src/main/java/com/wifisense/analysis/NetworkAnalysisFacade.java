@@ -62,9 +62,9 @@ public class NetworkAnalysisFacade {
     @Transactional
     public AnalysisResultResponse analyze(Long networkId, AnalysisType type, String requestedBy) {
         AnalysisStrategy strategy = Optional.ofNullable(strategies.get(type))
-                .orElseThrow(() -> new IllegalArgumentException("Unsupported analysis type " + type));
+                .orElseThrow(() -> new IllegalArgumentException("Tipo de análisis no soportado: " + type));
         Network network = networks.findWithZoneById(networkId)
-                .orElseThrow(() -> new ResourceNotFoundException("Network", networkId));
+                .orElseThrow(() -> new ResourceNotFoundException("la red", networkId));
 
         AnalysisContext context = buildContext(network);
         AnalysisOutcome outcome = strategy.analyze(context);

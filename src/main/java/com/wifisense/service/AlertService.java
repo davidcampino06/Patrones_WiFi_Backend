@@ -46,6 +46,6 @@ public class AlertService {
     }
 
     private Alert find(Long id) {
-        return alerts.findById(id).orElseThrow(() -> new ResourceNotFoundException("Alert", id));
+        return alerts.findById(id).orElseThrow(() -> new ResourceNotFoundException("la alerta", id));
     }
 }

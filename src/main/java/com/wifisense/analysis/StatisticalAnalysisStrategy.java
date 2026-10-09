@@ -24,11 +24,11 @@ public class StatisticalAnalysisStrategy implements AnalysisStrategy {
     }
 
     private static final List<Metric> METRICS = List.of(
-            new Metric("latency", Measurement::getLatencyMs, 1),
+            new Metric("latencia", Measurement::getLatencyMs, 1),
             new Metric("jitter", Measurement::getJitterMs, 1),
-            new Metric("packet loss", Measurement::getPacketLossPct, 1),
-            new Metric("bandwidth", Measurement::getBandwidthMbps, -1),
-            new Metric("signal", Measurement::getSignalStrengthDbm, -1));
+            new Metric("pérdida de paquetes", Measurement::getPacketLossPct, 1),
+            new Metric("ancho de banda", Measurement::getBandwidthMbps, -1),
+            new Metric("señal", Measurement::getSignalStrengthDbm, -1));
 
     @Override
     public AnalysisType type() {
@@ -37,13 +37,13 @@ public class StatisticalAnalysisStrategy implements AnalysisStrategy {
 
     @Override
     public String description() {
-        return "Z-score of the latest measurement against the network's recent history";
+        return "Compara la última medición con el historial reciente de la red (z-score)";
     }
 
     @Override
     public AnalysisOutcome analyze(AnalysisContext context) {
         if (context.history().size() < MIN_SAMPLES) {
-            throw new InsufficientDataException("Statistical analysis needs at least " + MIN_SAMPLES + " measurements");
+            throw new InsufficientDataException("El análisis estadístico necesita al menos " + MIN_SAMPLES + " mediciones");
         }
         Map<String, Double> deviations = new TreeMap<>();
         for (Metric metric : METRICS) {
@@ -75,7 +75,7 @@ public class StatisticalAnalysisStrategy implements AnalysisStrategy {
                 .filter(e -> e.getValue() >= WARNING_Z)
                 .map(e -> "%s z=%.1f".formatted(e.getKey(), e.getValue()))
                 .collect(Collectors.joining(", "));
-        return unusual.isEmpty() ? "Latest measurement consistent with recent history"
-                : "Unusual deviation from history: " + unusual;
+        return unusual.isEmpty() ? "La última medición es consistente con el historial reciente"
+                : "Desviación inusual respecto al historial: " + unusual;
     }
 }

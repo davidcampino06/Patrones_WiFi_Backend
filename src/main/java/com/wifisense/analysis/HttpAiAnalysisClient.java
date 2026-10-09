@@ -42,7 +42,7 @@ public class HttpAiAnalysisClient implements AiAnalysisClient {
                     .retrieve()
                     .body(AiAnalysisResponse.class);
         } catch (RestClientException e) {
-            throw new AiServiceUnavailableException("AI service request failed: " + e.getMessage(), e);
+            throw new AiServiceUnavailableException("Falló la solicitud al servicio de IA: " + e.getMessage(), e);
         }
     }
 }

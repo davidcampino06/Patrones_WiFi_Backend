@@ -33,7 +33,7 @@ class ThresholdAnalysisStrategyTest {
         AnalysisOutcome outcome = analyze(measurement(network, 80, 3, 9, -55, NOW));
 
         assertThat(outcome.status()).isEqualTo(NetworkStatus.CRITICAL);
-        assertThat(outcome.summary()).contains("latency", "packet loss");
+        assertThat(outcome.summary()).contains("latencia", "pérdida de paquetes", "crítico");
         assertThat(outcome.score()).isEqualTo(1.0);
     }
 
@@ -42,7 +42,7 @@ class ThresholdAnalysisStrategyTest {
         AnalysisOutcome outcome = analyze(measurement(network, 20, 3, 0.2, -75, NOW));
 
         assertThat(outcome.status()).isEqualTo(NetworkStatus.WARNING);
-        assertThat(outcome.summary()).contains("signal");
+        assertThat(outcome.summary()).contains("señal");
     }
 
     @Test

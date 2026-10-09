@@ -37,10 +37,10 @@ public class DeviceService {
     @Transactional
     public DeviceResponse create(DeviceRequest request) {
         if (devices.existsByMacAddress(request.macAddress().toUpperCase())) {
-            throw new DuplicateResourceException("A device with MAC " + request.macAddress() + " already exists");
+            throw new DuplicateResourceException("Ya existe un dispositivo con la MAC " + request.macAddress());
         }
         Network network = networks.findById(request.networkId())
-                .orElseThrow(() -> new ResourceNotFoundException("Network", request.networkId()));
+                .orElseThrow(() -> new ResourceNotFoundException("la red", request.networkId()));
         Device device = new Device(network, request.hostname(), request.ipAddress(), request.macAddress(),
                 request.type(), request.signalStrength());
         return DeviceResponse.from(devices.save(device));
@@ -48,7 +48,7 @@ public class DeviceService {
 
     public List<TrafficSessionResponse> sessions(Long deviceId) {
         if (!devices.existsById(deviceId)) {
-            throw new ResourceNotFoundException("Device", deviceId);
+            throw new ResourceNotFoundException("el dispositivo", deviceId);
         }
         return sessions.findByDeviceIdOrderByStartedAtDesc(deviceId).stream().map(TrafficSessionResponse::from).toList();
     }

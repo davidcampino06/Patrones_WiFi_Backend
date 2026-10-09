@@ -26,15 +26,15 @@ public class ValidationDecorator extends DataSourceDecorator {
 
     static List<String> violations(NetworkSnapshot s) {
         List<String> errors = new ArrayList<>();
-        if (s.latencyMs() < 0) errors.add("latency must be >= 0");
-        if (s.jitterMs() < 0) errors.add("jitter must be >= 0");
-        if (s.packetLossPct() < 0 || s.packetLossPct() > 100) errors.add("packet loss must be within 0-100");
-        if (s.bandwidthMbps() != null && s.bandwidthMbps() < 0) errors.add("bandwidth must be >= 0");
+        if (s.latencyMs() < 0) errors.add("la latencia no puede ser negativa");
+        if (s.jitterMs() < 0) errors.add("el jitter no puede ser negativo");
+        if (s.packetLossPct() < 0 || s.packetLossPct() > 100) errors.add("la pérdida de paquetes debe estar entre 0 y 100");
+        if (s.bandwidthMbps() != null && s.bandwidthMbps() < 0) errors.add("el ancho de banda no puede ser negativo");
         if (s.signalStrengthDbm() != null && (s.signalStrengthDbm() < -100 || s.signalStrengthDbm() > 0)) {
-            errors.add("signal strength must be within -100..0 dBm");
+            errors.add("la señal debe estar entre -100 y 0 dBm");
         }
-        if (s.connectedDevices() != null && s.connectedDevices() < 0) errors.add("connected devices must be >= 0");
-        if (s.collectedAt() == null) errors.add("timestamp is required");
+        if (s.connectedDevices() != null && s.connectedDevices() < 0) errors.add("los dispositivos conectados no pueden ser negativos");
+        if (s.collectedAt() == null) errors.add("la fecha de la medición es obligatoria");
         return errors;
     }
 }

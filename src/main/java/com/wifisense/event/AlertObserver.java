@@ -47,7 +47,8 @@ public class AlertObserver implements NetworkEventListener {
             alerts.findByNetworkIdAndStatusNot(event.networkId(), Alert.Status.RESOLVED)
                     .forEach(alert -> alert.resolve(now));
         }
-        String message = "%s: %s -> %s. %s".formatted(event.ssid(), event.previous(), event.current(), event.reason());
+        String message = "%s pasó de %s a %s. %s".formatted(event.ssid(), event.previous().label(), event.current().label(),
+                event.reason());
         alerts.save(new Alert(network, result, state.alertSeverityOnEnter(), truncate(message)));
     }
 

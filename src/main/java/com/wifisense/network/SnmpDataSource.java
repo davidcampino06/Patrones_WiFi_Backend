@@ -10,6 +10,6 @@ public class SnmpDataSource implements NetworkDataSource {
 
     @Override
     public NetworkSnapshot collect(NetworkTarget target) {
-        throw new DataSourceUnavailableException("SNMP data source is planned but not implemented yet");
+        throw new DataSourceUnavailableException("La fuente SNMP aún no está disponible");
     }
 }

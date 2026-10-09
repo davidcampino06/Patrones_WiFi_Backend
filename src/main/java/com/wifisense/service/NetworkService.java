@@ -36,7 +36,7 @@ public class NetworkService {
     @Transactional
     public NetworkResponse create(NetworkRequest request) {
         if (networks.existsByBssid(request.bssid().toUpperCase())) {
-            throw new DuplicateResourceException("A network with BSSID " + request.bssid() + " already exists");
+            throw new DuplicateResourceException("Ya existe una red con el BSSID " + request.bssid());
         }
         Network network = new Network(findZone(request.zoneId()), request.ssid(), request.bssid(),
                 request.frequencyBand(), request.channel(), request.securityType(), request.dataSourceType());
@@ -58,10 +58,10 @@ public class NetworkService {
     }
 
     private Network find(Long id) {
-        return networks.findWithZoneById(id).orElseThrow(() -> new ResourceNotFoundException("Network", id));
+        return networks.findWithZoneById(id).orElseThrow(() -> new ResourceNotFoundException("la red", id));
     }
 
     private Zone findZone(Long zoneId) {
-        return zones.findById(zoneId).orElseThrow(() -> new ResourceNotFoundException("Zone", zoneId));
+        return zones.findById(zoneId).orElseThrow(() -> new ResourceNotFoundException("la zona", zoneId));
     }
 }

@@ -45,7 +45,7 @@ class StatisticalAnalysisStrategyTest {
         AnalysisOutcome outcome = strategy.analyze(new AnalysisContext(1, "Test", history, List.of()));
 
         assertThat(outcome.status()).isEqualTo(NetworkStatus.CRITICAL);
-        assertThat(outcome.summary()).contains("latency");
+        assertThat(outcome.summary()).contains("latencia");
     }
 
     @Test
