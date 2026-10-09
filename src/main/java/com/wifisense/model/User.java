@@ -50,6 +50,10 @@ public class User {
         this.role = role;
     }
 
+    public void changePassword(String newPasswordHash) {
+        this.passwordHash = newPasswordHash;
+    }
+
     public void changeRole(Role newRole) {
         this.role = newRole;
     }
