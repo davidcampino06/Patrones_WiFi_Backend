@@ -1,6 +1,5 @@
 package com.wifisense.dto;
 
-import jakarta.validation.constraints.NotBlank;
-
-public record LoginRequest(@NotBlank String username, @NotBlank String password) {
+/** No bean validation here: any malformed login is answered with the same generic error. */
+public record LoginRequest(String username, String password) {
 }
