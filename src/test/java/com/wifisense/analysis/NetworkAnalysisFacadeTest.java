@@ -74,7 +74,7 @@ class NetworkAnalysisFacadeTest {
     @Test
     void savesAiPredictionWhenTheStrategyUsedTheAiService() {
         AiAnalysisResponse ai = new AiAnalysisResponse(true, 0.8, AiPrediction.Severity.HIGH, "msg", "rec",
-                List.of("latency"), 1, 1, List.of(), "isolation-forest-1.0", true);
+                "CLAUDE", List.of("latency"), 1, 1, List.of(), "isolation-forest-1.0", true);
         when(strategy.analyze(any())).thenReturn(new AnalysisOutcome(NetworkStatus.CRITICAL, 0.8, "msg", ai));
         when(predictions.save(any(AiPrediction.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -82,6 +82,7 @@ class NetworkAnalysisFacadeTest {
 
         assertThat(response.prediction()).isNotNull();
         assertThat(response.prediction().simulatedData()).isTrue();
+        assertThat(response.prediction().recommendationSource()).isEqualTo("CLAUDE");
     }
 
     @Test
