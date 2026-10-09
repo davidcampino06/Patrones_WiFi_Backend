@@ -10,6 +10,7 @@ public record AiAnalysisResponse(
         AiPrediction.Severity severity,
         String message,
         String recommendation,
+        String recommendationSource,
         List<String> contributingFeatures,
         int anomalousSamples,
         int sampleSize,

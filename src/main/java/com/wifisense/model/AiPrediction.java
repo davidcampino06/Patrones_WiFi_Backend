@@ -37,8 +37,11 @@ public class AiPrediction {
     @Column(nullable = false, length = 300)
     private String message;
 
-    @Column(length = 500)
+    @Column(length = 1500)
     private String recommendation;
+
+    @Column(name = "recommendation_source", nullable = false, length = 10)
+    private String recommendationSource = "RULES";
 
     @Column(name = "model_version", nullable = false, length = 50)
     private String modelVersion;
@@ -60,11 +63,16 @@ public class AiPrediction {
         prediction.anomalyDetected = response.anomalyDetected();
         prediction.anomalyScore = response.anomalyScore();
         prediction.severity = response.severity();
-        prediction.message = response.message();
-        prediction.recommendation = response.recommendation();
+        prediction.message = truncate(response.message(), 300);
+        prediction.recommendation = response.recommendation() == null ? null : truncate(response.recommendation(), 1500);
+        prediction.recommendationSource = "CLAUDE".equals(response.recommendationSource()) ? "CLAUDE" : "RULES";
         prediction.modelVersion = response.modelVersion();
         prediction.simulatedData = response.simulatedData();
         return prediction;
+    }
+
+    private static String truncate(String text, int max) {
+        return text.length() <= max ? text : text.substring(0, max - 3) + "...";
     }
 
     public Long getId() { return id; }
@@ -75,6 +83,7 @@ public class AiPrediction {
     public Severity getSeverity() { return severity; }
     public String getMessage() { return message; }
     public String getRecommendation() { return recommendation; }
+    public String getRecommendationSource() { return recommendationSource; }
     public String getModelVersion() { return modelVersion; }
     public boolean isSimulatedData() { return simulatedData; }
     public Instant getCreatedAt() { return createdAt; }

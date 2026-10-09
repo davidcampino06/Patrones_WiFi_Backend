@@ -28,7 +28,7 @@ public class AnomalyDetectionStrategy implements AnalysisStrategy {
 
     @Override
     public String description() {
-        return "Machine learning (Isolation Forest) anomaly detection in the AI service";
+        return "Detección de anomalías con aprendizaje automático (Isolation Forest) y recomendaciones de IA";
     }
 
     @Override
