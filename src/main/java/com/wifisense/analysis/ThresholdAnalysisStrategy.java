@@ -38,11 +38,11 @@ public class ThresholdAnalysisStrategy implements AnalysisStrategy {
     public ThresholdAnalysisStrategy(AnalysisProperties properties) {
         AnalysisProperties.Thresholds t = properties.thresholds();
         this.rules = List.of(
-                new Rule("latency", Measurement::getLatencyMs, 0, t.latencyWarningMs(), t.latencyCriticalMs()),
+                new Rule("latencia", Measurement::getLatencyMs, 0, t.latencyWarningMs(), t.latencyCriticalMs()),
                 new Rule("jitter", Measurement::getJitterMs, 0, t.jitterWarningMs(), t.jitterCriticalMs()),
-                new Rule("packet loss", Measurement::getPacketLossPct, 0, t.packetLossWarningPct(),
+                new Rule("pérdida de paquetes", Measurement::getPacketLossPct, 0, t.packetLossWarningPct(),
                         t.packetLossCriticalPct()),
-                new Rule("signal", Measurement::getSignalStrengthDbm, -30, t.signalWarningDbm(),
+                new Rule("señal", Measurement::getSignalStrengthDbm, -30, t.signalWarningDbm(),
                         t.signalCriticalDbm()));
     }
 
@@ -53,7 +53,7 @@ public class ThresholdAnalysisStrategy implements AnalysisStrategy {
 
     @Override
     public String description() {
-        return "Compares the latest measurement with fixed warning and critical limits";
+        return "Compara la última medición con límites fijos de advertencia y crítico";
     }
 
     @Override
@@ -80,10 +80,10 @@ public class ThresholdAnalysisStrategy implements AnalysisStrategy {
 
     private static String summary(Map<String, NetworkStatus> violations) {
         if (violations.isEmpty()) {
-            return "All metrics within configured limits";
+            return "Todas las métricas están dentro de los límites configurados";
         }
-        return "Limits exceeded: " + violations.entrySet().stream()
-                .map(e -> e.getKey() + " (" + e.getValue() + ")")
+        return "Límites superados: " + violations.entrySet().stream()
+                .map(e -> e.getKey() + " (" + e.getValue().label() + ")")
                 .collect(Collectors.joining(", "));
     }
 }

@@ -44,10 +44,10 @@ public class ReportService {
         Instant end = to == null ? Instant.now(clock) : to;
         Instant start = from == null ? end.minus(Duration.ofHours(24)) : from;
         if (start.isAfter(end) || Duration.between(start, end).compareTo(MAX_RANGE) > 0) {
-            throw new IllegalArgumentException("Report range must be positive and at most 31 days");
+            throw new IllegalArgumentException("El periodo del reporte debe ser válido y de máximo 31 días");
         }
         Network network = networks.findById(networkId)
-                .orElseThrow(() -> new ResourceNotFoundException("Network", networkId));
+                .orElseThrow(() -> new ResourceNotFoundException("la red", networkId));
         List<Measurement> data = measurements.findByNetworkIdAndMeasuredAtBetweenOrderByMeasuredAtAsc(networkId, start, end);
 
         return new NetworkReport(networkId, network.getSsid(), start, end, data.size(),
@@ -66,7 +66,7 @@ public class ReportService {
     public List<NetworkReport> compare(List<Long> networkIds, Instant from, Instant to) {
         Set<Long> unique = new LinkedHashSet<>(networkIds);
         if (unique.size() < 2 || unique.size() > 6) {
-            throw new IllegalArgumentException("Compare between 2 and 6 different networks");
+            throw new IllegalArgumentException("Selecciona entre 2 y 6 redes distintas para comparar");
         }
         return unique.stream().map(id -> report(id, from, to)).toList();
     }

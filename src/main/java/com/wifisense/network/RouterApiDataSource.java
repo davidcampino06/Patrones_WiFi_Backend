@@ -10,6 +10,6 @@ public class RouterApiDataSource implements NetworkDataSource {
 
     @Override
     public NetworkSnapshot collect(NetworkTarget target) {
-        throw new DataSourceUnavailableException("Router API data source is planned but not implemented yet");
+        throw new DataSourceUnavailableException("La fuente de API de router aún no está disponible");
     }
 }

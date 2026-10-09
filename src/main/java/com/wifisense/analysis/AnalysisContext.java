@@ -11,7 +11,7 @@ public record AnalysisContext(long networkId, String ssid, List<Measurement> his
 
     public AnalysisContext {
         if (history.isEmpty()) {
-            throw new InsufficientDataException("At least one measurement is required");
+            throw new InsufficientDataException("Se necesita al menos una medición");
         }
         history = List.copyOf(history);
         traffic = List.copyOf(traffic);

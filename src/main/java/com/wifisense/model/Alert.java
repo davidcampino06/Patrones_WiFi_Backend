@@ -55,14 +55,14 @@ public class Alert {
 
     public void acknowledge() {
         if (status != Status.OPEN) {
-            throw new IllegalStateException("Only OPEN alerts can be acknowledged");
+            throw new IllegalStateException("Solo se pueden reconocer alertas abiertas");
         }
         status = Status.ACKNOWLEDGED;
     }
 
     public void resolve(Instant at) {
         if (status == Status.RESOLVED) {
-            throw new IllegalStateException("Alert is already resolved");
+            throw new IllegalStateException("La alerta ya está resuelta");
         }
         status = Status.RESOLVED;
         resolvedAt = at;

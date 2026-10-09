@@ -10,6 +10,6 @@ public class TrafficCaptureDataSource implements NetworkDataSource {
 
     @Override
     public NetworkSnapshot collect(NetworkTarget target) {
-        throw new DataSourceUnavailableException("Traffic capture data source is planned but not implemented yet");
+        throw new DataSourceUnavailableException("La fuente de captura de tráfico aún no está disponible");
     }
 }

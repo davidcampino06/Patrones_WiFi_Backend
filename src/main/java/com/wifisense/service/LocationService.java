@@ -43,7 +43,7 @@ public class LocationService {
     @Transactional
     public ZoneResponse createZone(Long locationId, ZoneRequest request) {
         Location location = locations.findById(locationId)
-                .orElseThrow(() -> new ResourceNotFoundException("Location", locationId));
+                .orElseThrow(() -> new ResourceNotFoundException("la ubicación", locationId));
         return ZoneResponse.from(zones.save(new Zone(location, request.name(), request.floor())));
     }
 }

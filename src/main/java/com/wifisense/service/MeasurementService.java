@@ -45,7 +45,7 @@ public class MeasurementService {
         Instant end = to == null ? Instant.now(clock) : to;
         Instant start = from == null ? end.minus(DEFAULT_RANGE) : from;
         if (start.isAfter(end)) {
-            throw new IllegalArgumentException("'from' must be before 'to'");
+            throw new IllegalArgumentException("La fecha inicial debe ser anterior a la final");
         }
         return measurements.findByNetworkIdAndMeasuredAtBetweenOrderByMeasuredAtDesc(networkId, start, end,
                         PageRequest.of(0, clamp(limit)))
@@ -65,7 +65,7 @@ public class MeasurementService {
 
     private void requireNetwork(Long networkId) {
         if (!networks.existsById(networkId)) {
-            throw new ResourceNotFoundException("Network", networkId);
+            throw new ResourceNotFoundException("la red", networkId);
         }
     }
 

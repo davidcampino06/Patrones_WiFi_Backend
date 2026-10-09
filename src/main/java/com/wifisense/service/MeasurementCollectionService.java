@@ -45,7 +45,7 @@ public class MeasurementCollectionService {
     @Transactional
     public MeasurementResponse collect(Long networkId) {
         Network network = networks.findById(networkId)
-                .orElseThrow(() -> new ResourceNotFoundException("Network", networkId));
+                .orElseThrow(() -> new ResourceNotFoundException("la red", networkId));
         NetworkDataSource source = dataSources.forType(network.getDataSourceType());
         NetworkSnapshot snapshot = source.collect(NetworkTarget.of(network));
 
