@@ -96,11 +96,11 @@ class NetworkControllerTest {
 
     @Test
     void unknownNetworkReturns404() throws Exception {
-        when(networkService.get(99L)).thenThrow(new ResourceNotFoundException("Network", 99L));
+        when(networkService.get(99L)).thenThrow(new ResourceNotFoundException("la red", 99L));
 
         mvc.perform(get("/api/networks/99").with(as("VIEWER")))
                 .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.detail").value("Network 99 not found"));
+                .andExpect(jsonPath("$.detail").value("No se encontró la red con id 99"));
     }
 
     @Test
