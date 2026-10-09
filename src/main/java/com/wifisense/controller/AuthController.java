@@ -2,13 +2,12 @@ package com.wifisense.controller;
 
 import com.wifisense.dto.AuthResponse;
 import com.wifisense.dto.LoginRequest;
-import com.wifisense.dto.RegisterRequest;
 import com.wifisense.dto.UserResponse;
 import com.wifisense.service.AuthService;
 import com.wifisense.service.UserService;
-import jakarta.validation.Valid;
-import org.springframework.http.HttpStatus;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.security.core.Authentication;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -24,18 +23,18 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public AuthResponse login(@Valid @RequestBody LoginRequest request) {
-        return authService.login(request);
-    }
-
-    @PostMapping("/register")
-    @ResponseStatus(HttpStatus.CREATED)
-    public UserResponse register(@Valid @RequestBody RegisterRequest request) {
-        return userService.register(request);
+    public AuthResponse login(@RequestBody LoginRequest request, HttpServletRequest http) {
+        return authService.login(request, clientAddress(http));
     }
 
     @GetMapping("/me")
     public UserResponse me(Authentication authentication) {
         return userService.findByUsername(authentication.getName());
+    }
+
+    /** Behind Railway's proxy the caller's address is the first entry of X-Forwarded-For. */
+    private static String clientAddress(HttpServletRequest http) {
+        String forwarded = http.getHeader("X-Forwarded-For");
+        return StringUtils.hasText(forwarded) ? forwarded.split(",")[0].trim() : http.getRemoteAddr();
     }
 }

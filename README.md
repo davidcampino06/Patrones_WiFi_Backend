@@ -10,7 +10,7 @@ Frontend ──HTTP/REST + JWT──► Backend ──JDBC──► PostgreSQL (
 
 ## Tecnologías
 
-Java 21 · Spring Boot 3.5 · Spring Web · Spring Data JPA / Hibernate · Bean Validation · Spring Security
+Java 25 (LTS) · Spring Boot 3.5 · Spring Web · Spring Data JPA / Hibernate · Bean Validation · Spring Security
 (OAuth2 Resource Server con JWT HS256) · PostgreSQL JDBC · Actuator · JUnit 5 · Mockito · AssertJ · Maven
 
 ## Arquitectura
@@ -50,9 +50,9 @@ Todas las rutas `/api/**` requieren `Authorization: Bearer <token>` salvo login 
 
 | Método | Ruta | Rol |
 |---|---|---|
-| POST | `/api/auth/login`, `/api/auth/register` | público (registro crea VIEWER) |
+| POST | `/api/auth/login` | público (no existe registro: las cuentas las crea el administrador) |
 | GET | `/api/auth/me` | autenticado |
-| GET / PATCH | `/api/users`, `/api/users/{id}/role` | ADMIN |
+| GET / POST / PATCH / DELETE | `/api/users`, `/api/users/{id}/role`, `/api/users/{id}` | ADMIN (máximo 3 cuentas) |
 | GET / POST | `/api/locations`, `/api/locations/{id}/zones`, `/api/zones` | GET autenticado · POST ADMIN |
 | GET / POST / PUT / DELETE | `/api/networks[/{id}]` | GET autenticado · resto ADMIN |
 | GET / POST | `/api/devices`, `/api/devices/{id}/sessions` | GET autenticado · POST ADMIN |
@@ -62,11 +62,29 @@ Todas las rutas `/api/**` requieren `Authorization: Bearer <token>` salvo login 
 | POST | `/api/networks/{id}/analyses` `{"type":"THRESHOLD|STATISTICAL|ANOMALY_DETECTION"}` | ADMIN, ANALYST |
 | GET | `/api/analyses?networkId&limit`, `/api/analyses/strategies`, `/api/anomalies` | autenticado |
 | GET / PATCH | `/api/alerts?status`, `/api/alerts/{id}/acknowledge`, `/api/alerts/{id}/resolve` | GET autenticado · PATCH ADMIN, ANALYST |
-| GET | `/api/dashboard/summary`, `/api/observability/data-sources`, `/api/observability/activity` | autenticado |
+| GET | `/api/dashboard/summary` | autenticado |
+| GET | `/api/observability/data-sources`, `/api/observability/activity` | ADMIN |
 | GET | `/api/reports/networks/{id}?from&to`, `/api/reports/comparison?networkIds=1,2` | autenticado |
 | GET | `/actuator/health` | público |
 
 Errores: `application/problem+json` con `detail` y, en validación, `errors` por campo.
+
+## Seguridad
+
+- **Sin registro público.** Solo el administrador crea cuentas, con un máximo de 3 (`wifisense.accounts.max-users`).
+- **Contraseñas:** se guardan solo como hash **BCrypt**; nunca se devuelven ni se registran en logs. Política
+  (`PasswordPolicy`): 10 a 12 caracteres, al menos una mayúscula, un número y un carácter especial, sin espacios.
+- **Usuario:** 3 a 20 caracteres (letras, números, `.`, `-`, `_`).
+- **Login:** cualquier fallo responde lo mismo, `Datos incorrectos.`; entradas fuera de los límites se rechazan sin
+  consultar la base de datos. Tras 5 fallos del mismo usuario y dirección (o 20 de una misma dirección) se bloquea
+  10 minutos (`LoginAttemptService`).
+- **Tamaño de solicitudes:** cuerpos de más de 16 KB se rechazan con 413 (`RequestSizeLimitFilter`).
+- **Errores:** mensajes en español, sin trazas ni detalles internos (`GlobalExceptionHandler`).
+- **Secretos:** solo en variables de entorno de la plataforma; nunca en el repositorio ni en el frontend.
+
+Ver una contraseña en la pestaña *Red* de F12 de **tu propio** navegador es normal: es lo que tú escribiste,
+viaja cifrado por HTTPS y nadie más lo ve. Lo que importa es que el servidor no la guarde en claro (BCrypt) y que no
+haya secretos dentro del frontend.
 
 ## Base de datos
 
@@ -89,6 +107,7 @@ estrategias de umbrales y estadística siguen funcionando.
 | `AI_SERVICE_URL` | `http://localhost:8000` | URL interna del servicio de IA |
 | `AI_API_KEY` | | Debe coincidir con la del servicio de IA |
 | `JWT_SECRET` | 32+ caracteres aleatorios | Firma de tokens; el arranque falla si falta |
+| `ADMIN_USERNAME` / `ADMIN_PASSWORD` | definidos por el equipo, nunca en el repositorio | Cuenta de administrador; la contraseña debe cumplir la política |
 | `CORS_ALLOWED_ORIGINS` | `http://localhost:5173` | Orígenes del frontend, separados por coma |
 | `MONITORING_ENABLED` | `true` | Recolección y análisis automáticos |
 
@@ -105,8 +124,8 @@ mvn test                     # pruebas unitarias y de controladores
 docker build -t wifisense-backend .
 ```
 
-Usuarios de demostración (sembrados por WiFiSense-database): `admin`, `analyst`, `viewer` con la contraseña
-indicada en `seeds/seed_data.sql`. Cámbiala fuera del entorno local.
+No hay usuarios de demostración. Al arrancar se crea (o actualiza) el administrador definido en
+`ADMIN_USERNAME` / `ADMIN_PASSWORD`; él crea las otras cuentas desde la página Usuarios.
 
 ## Pruebas
 
