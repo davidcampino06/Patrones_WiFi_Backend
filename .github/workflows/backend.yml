@@ -38,7 +38,7 @@ jobs:
       ADMIN_URL: postgresql://postgres:solo-para-ci@localhost:5432/postgres
       DATABASE_URL: postgresql://postgres:solo-para-ci@localhost:5432/wifisense
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       # A change of the backend often needs a migration that is in a Pull Request of the database with the same branch
       # name (for example avance17-integrante1) and is not merged yet: then that branch is used, otherwise main.
@@ -54,7 +54,7 @@ jobs:
           fi
 
       - name: Migraciones del repositorio de base de datos
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
         with:
           repository: davidcampino06/Patrones_WiFi_db
           ref: ${{ steps.base.outputs.ref }}
