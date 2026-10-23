@@ -26,12 +26,12 @@ Usuario ─► Frontend (Vercel) ─► Backend (contenedor) ─► PostgreSQL a
 3. **Deploy Backend.** Crea un servicio Docker desde `WiFiSense-backend` (usa su `Dockerfile`: compila con Maven y corre en Java 21 LTS). Puerto `8080`
    o la variable `PORT` de la plataforma. Health check: `/actuator/health`.
 4. **Deploy AI service.** Crea un servicio Docker desde `WiFiSense-ai`. Variables: `AI_API_KEY` (la misma del
-   backend) y opcionalmente `AI_MODEL_PATH`. Health check: `/health`. Si la plataforma lo permite, déjalo en red
+   backend; **obligatoria**: en Railway el servicio no arranca sin ella) y opcionalmente `AI_MODEL_PATH`. Health check: `/health`. Si la plataforma lo permite, déjalo en red
    privada.
 5. **Configure AI_SERVICE_URL.** En el backend, `AI_SERVICE_URL` = URL interna o pública del servicio de IA, sin
    barra final. Reinicia el backend.
 6. **Deploy Frontend on Vercel.** Importa `WiFiSense-frontend`; framework Vite, build `npm run build`,
-   salida `dist`. `vercel.json` ya redirige las rutas del SPA a `index.html`.
+   salida `dist`. Define `VITE_API_URL` (URL pública del backend): sin ella el build de Vercel se detiene. `vercel.json` ya redirige las rutas del SPA a `index.html`.
 7. **Configure VITE_API_URL.** En Vercel → Environment Variables: `VITE_API_URL` = URL pública del backend.
    Vuelve a desplegar (Vite la incrusta en el build).
 8. **Test Frontend → Backend.** Abre la URL de Vercel, inicia sesión y revisa el panel. Un error de CORS indica que falta la URL de Vercel en `CORS_ALLOWED_ORIGINS`.
