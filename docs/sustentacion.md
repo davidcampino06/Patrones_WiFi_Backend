@@ -26,9 +26,19 @@ PostgreSQL 16 (Railway)    └── Agente / sensor (Python, instalador de Wind
 - **4 repositorios**, uno por componente, cada uno con sus pruebas y su GitHub Actions en cada Pull Request.
 - **Solo el backend** habla con la base de datos y con la IA. La página nunca ve la IA ni la base.
 - **Las MAC nunca salen del computador** del agente: viaja una huella SHA-256 con sal.
-- Patrones de diseño (detalle en [PATTERNS.md](../PATTERNS.md)): **Factory Method** (fuentes de datos), **Decorator**
-  (métricas, logs y validación alrededor de cada fuente), **Strategy** (análisis por umbrales, estadístico o con IA),
-  **State** (estado de cada red), **Observer** (alertas y registro de actividad) y **Facade** (`NetworkAnalysisFacade`).
+- **Nueve patrones** verificados en el código, cada uno con su prueba (detalle, ejemplos y diagrama de clases en
+  [PATTERNS.md](../PATTERNS.md)): **Factory Method** (fuentes de datos), **Decorator** (métricas, logs y validación
+  alrededor de cada fuente), **Strategy** (análisis por umbrales, estadístico o con IA), **State** (estado de cada red),
+  **Observer** (alertas y actividad), **Facade** (`NetworkAnalysisFacade`), **Adapter** (la API REST de la IA y la de
+  Brevo como interfaces Java), **Template Method** (ninguna fuente se salta la validación, y los equipos de la casa y
+  de la sede se registran con un solo algoritmo) y **Proxy con Circuit Breaker** (la IA caída no deja esperando a
+  nadie).
+- **En la IA y en la página**, cada uno con su documento `docs/patrones.md`: **Null Object** (sin clave de Claude, el
+  asesor por reglas), Strategy y Pipeline en la IA; **Error Boundary** (una página que falla no deja la pantalla en
+  blanco), Provider, componentes guardia, Custom Hook y Single-flight en la página.
+- **Investigados y descartados** con su razón: Builder, Singleton, Command, Chain of Responsibility, Abstract Factory,
+  Mediator, Retry, **Bulkhead** (la IA atiende unas 70 peticiones por segundo y el uso real es menos de 1), Outbox, Visitor y Memento.
+  Descartar un patrón que no resuelve nada también es diseño.
 
 ## 3. Demostración (8 minutos)
 
@@ -39,12 +49,13 @@ Ten abiertas las pestañas antes de empezar y una sesión iniciada en cada rol.
 | 1 | Integrante 1 | Iniciar sesión con F12 → Red abierto | La contraseña no aparece: viaja cifrada con RSA-OAEP con un reto de un solo uso, además de HTTPS |
 | 2 | Integrante 1 | Mi Wi-Fi → Agente: equipos conectados | Cada equipo con su tipo (celular, TV, impresora…), modelo, «Este computador» y «Router»; nunca la MAC |
 | 3 | Integrante 1 | «¿Cuál es este equipo?» con un celular | El agente pasa a reportar cada minuto; apagas el Wi-Fi del celular y la página ve cuál desapareció |
-| 4 | Integrante 2 | Seguridad, mejor canal, historial (reloj) | La IA audita cifrado y puertos del router, y recomienda el canal con menos vecinos |
+| 4 | Integrante 2 | Seguridad, mejor canal, historial (reloj) | El servicio de IA audita cifrado y puertos del router con **reglas** y recomienda el canal con menos vecinos; decirlo así, no como aprendizaje automático |
 | 5 | Integrante 2 | Equipo → Redes → panel del sensor | Una red de la sede con su sensor: mediciones reales, tráfico y protocolos |
 | 6 | Integrante 2 | Reportes → Reporte semanal → CSV y PDF | Lunes a domingo en hora de Colombia, lo importante en frases |
 | 7 | Jaider | Anomalías y Análisis | Isolation Forest marca la medición rara y el diagnóstico dice la causa probable (congestión, interferencia…) |
-| 8 | Jaider | Modelo de IA → Entrenamiento con datos reales | El modelo nuevo se compara con el anterior y solo lo reemplaza si es mejor; historial de versiones |
-| 9 | Jaider | GitHub → Actions en verde | Cada cambio pasa por pruebas automáticas antes de llegar a Railway o Vercel |
+| 8 | Jaider | Modelo de IA → «Qué es aprendizaje automático y qué son reglas» y Entrenamiento con datos reales | Solo la detección es un modelo entrenado; el modelo nuevo se compara con el anterior y solo lo reemplaza si es mejor |
+| 9 | Jaider | `PATTERNS.md` → Proxy con Circuit Breaker | Con la IA sin responder, cada reporte tardaba 30 s; con el proxy, después del primero tardan 0,1 s |
+| 10 | Jaider | GitHub → Actions en verde e historial de commits | Cada cambio pasa por pruebas automáticas antes de llegar a Railway o Vercel; el trabajo está repartido entre los tres |
 
 **Plan B:** si la red del salón no deja conectar el agente, muestra la red de la casa (los datos ya están en la página)
 y el video corto del asistente grabado antes.
@@ -53,7 +64,8 @@ y el video corto del asistente grabado antes.
 
 | Qué | Cifra |
 |---|---|
-| Pruebas automáticas | Backend 351 (12 contra PostgreSQL real), IA 239, página 133, base de datos 166 comprobaciones |
+| Pruebas automáticas | Backend 376 (15 contra PostgreSQL real), IA 261, página 148, base de datos 173 comprobaciones; pruebas de contrato backend ↔ IA ↔ página |
+| IA sin responder | Antes: 30 s por reporte del sensor. Con el Circuit Breaker: 21 s el primero, 0,1 s los siguientes |
 | Detección de anomalías (datos sintéticos etiquetados) | Isolation Forest F1 0,90, 2 % de falsas alarmas; causa probable correcta en 94 % |
 | Con datos reales (prueba local) | El modelo sintético daba 100 % de falsas alarmas en una red pequeña; el entrenado con datos reales, 3,7 % |
 | Carga del backend (2 núcleos) | 50 personas a la vez: 176 peticiones/s, p95 97 ms, 0 errores. Límite: unas 250 peticiones/s |
@@ -89,6 +101,15 @@ la red exige el router (SNMP o su API). El diseño ya lo prevé (fábricas `Rout
 
 **¿Cuánta gente aguanta?** Ver la sección 4: con 50 personas a la vez responde en menos de 0,1 s (p95) en un computador
 de 2 núcleos; el uso real (3 cuentas del equipo, sensores cada 5 minutos) está muy por debajo.
+
+**¿Por qué agregaron patrones al final?** Cada uno salió de un problema real que encontró la auditoría: si la IA no
+responde, cada reporte esperaba 30 s (Circuit Breaker, medido antes y después); el registro de equipos estaba
+copiado en dos servicios (Template Method); una página con un error quedaba en blanco (Error Boundary); y cada
+endpoint de la IA preguntaba si había asesor (Null Object). Bulkhead lo analizamos y no lo pusimos: con la carga real
+no resolvía nada.
+
+**¿Todo lo que dice "IA" es aprendizaje automático?** No, y lo decimos en la página: solo la detección de anomalías es
+un modelo entrenado. La calidad, la seguridad, el canal y la causa probable son reglas, y Claude es opcional.
 
 ## 6. Limitaciones (dilas antes de que las pregunten)
 
