@@ -11,7 +11,7 @@ import com.wifisense.service.MeasurementCollectionService;
 import com.wifisense.service.ResourceNotFoundException;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -20,6 +20,9 @@ import java.util.*;
 /**
  * Facade over the analysis subsystem. Controllers and the monitoring job call one method;
  * this class coordinates data retrieval, the selected strategy, persistence, state and events.
+ * <p>
+ * The strategy runs between two short transactions, never inside one: the anomaly detection waits for the AI service
+ * (up to its timeout), and a database connection held meanwhile would be taken from the 10 the whole backend shares.
  */
 @Service
 public class NetworkAnalysisFacade {
@@ -34,13 +37,15 @@ public class NetworkAnalysisFacade {
     private final UserRepository users;
     private final NetworkEventPublisher events;
     private final AnalysisProperties properties;
+    private final TransactionTemplate transaction;
     private final Clock clock;
 
     public NetworkAnalysisFacade(List<AnalysisStrategy> strategyBeans, NetworkRepository networks,
                                  MeasurementRepository measurements, TrafficObservationRepository traffic,
                                  MeasurementCollectionService collection, AnalysisResultRepository results,
                                  AiPredictionRepository predictions, UserRepository users,
-                                 NetworkEventPublisher events, AnalysisProperties properties, Clock clock) {
+                                 NetworkEventPublisher events, AnalysisProperties properties,
+                                 TransactionTemplate transaction, Clock clock) {
         strategyBeans.forEach(strategy -> strategies.put(strategy.type(), strategy));
         this.networks = networks;
         this.measurements = measurements;
@@ -51,6 +56,7 @@ public class NetworkAnalysisFacade {
         this.users = users;
         this.events = events;
         this.properties = properties;
+        this.transaction = transaction;
         this.clock = clock;
     }
 
@@ -59,26 +65,32 @@ public class NetworkAnalysisFacade {
     }
 
     /** requestedBy is null when the analysis is triggered by the monitoring job. */
-    @Transactional
     public AnalysisResultResponse analyze(Long networkId, AnalysisType type, String requestedBy) {
         AnalysisStrategy strategy = Optional.ofNullable(strategies.get(type))
                 .orElseThrow(() -> new IllegalArgumentException("Tipo de análisis no soportado: " + type));
-        Network network = networks.findWithZoneById(networkId)
+        AnalysisContext context = Objects.requireNonNull(
+                transaction.execute(status -> buildContext(findNetwork(networkId))));
+
+        AnalysisOutcome outcome = strategy.analyze(context);  // outside any transaction: it may wait for the AI
+
+        return transaction.execute(status -> {
+            Network network = findNetwork(networkId);
+            AnalysisResult result = results.save(new AnalysisResult(network, findUser(requestedBy), type,
+                    outcome.status(), outcome.score(), truncate(outcome.summary()), context.history().size()));
+            AiPrediction prediction = outcome.ai()
+                    .map(response -> predictions.save(AiPrediction.from(result, response)))
+                    .orElse(null);
+
+            updateState(network, outcome, result);
+            events.publish(new AnalysisCompletedEvent(network.getId(), network.getSsid(), result.getId(), type,
+                    outcome.status(), outcome.score(), Instant.now(clock)));
+            return AnalysisResultResponse.from(result, prediction);
+        });
+    }
+
+    private Network findNetwork(Long networkId) {
+        return networks.findWithZoneById(networkId)
                 .orElseThrow(() -> new ResourceNotFoundException("la red", networkId));
-
-        AnalysisContext context = buildContext(network);
-        AnalysisOutcome outcome = strategy.analyze(context);
-
-        AnalysisResult result = results.save(new AnalysisResult(network, findUser(requestedBy), type,
-                outcome.status(), outcome.score(), truncate(outcome.summary()), context.history().size()));
-        AiPrediction prediction = outcome.ai()
-                .map(response -> predictions.save(AiPrediction.from(result, response)))
-                .orElse(null);
-
-        updateState(network, outcome, result);
-        events.publish(new AnalysisCompletedEvent(network.getId(), network.getSsid(), result.getId(), type,
-                outcome.status(), outcome.score(), Instant.now(clock)));
-        return AnalysisResultResponse.from(result, prediction);
     }
 
     private AnalysisContext buildContext(Network network) {

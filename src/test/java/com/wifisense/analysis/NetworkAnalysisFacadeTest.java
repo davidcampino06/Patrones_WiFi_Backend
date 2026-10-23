@@ -15,6 +15,11 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.TransactionStatus;
+import org.springframework.transaction.support.SimpleTransactionStatus;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Clock;
 import java.time.ZoneOffset;
@@ -39,6 +44,28 @@ class NetworkAnalysisFacadeTest {
     private final UserRepository users = mock(UserRepository.class);
     private final NetworkEventPublisher events = mock(NetworkEventPublisher.class);
     private final AnalysisStrategy strategy = mock(AnalysisStrategy.class);
+    private final TrackingTransactions transactions = new TrackingTransactions();
+
+    /** A transaction manager that only remembers whether a transaction is open. */
+    private static final class TrackingTransactions implements PlatformTransactionManager {
+        private boolean open;
+
+        @Override
+        public TransactionStatus getTransaction(TransactionDefinition definition) {
+            open = true;
+            return new SimpleTransactionStatus();
+        }
+
+        @Override
+        public void commit(TransactionStatus status) {
+            open = false;
+        }
+
+        @Override
+        public void rollback(TransactionStatus status) {
+            open = false;
+        }
+    }
 
     private NetworkAnalysisFacade facade;
     private Network network;
@@ -47,7 +74,8 @@ class NetworkAnalysisFacadeTest {
     void setUp() {
         when(strategy.type()).thenReturn(AnalysisType.THRESHOLD);
         facade = new NetworkAnalysisFacade(List.of(strategy), networks, measurements, traffic, collection, results,
-                predictions, users, events, new AnalysisProperties(50, null), Clock.fixed(NOW, ZoneOffset.UTC));
+                predictions, users, events, new AnalysisProperties(50, null), new TransactionTemplate(transactions),
+                Clock.fixed(NOW, ZoneOffset.UTC));
         network = network(1, NetworkStatus.NORMAL);
         when(networks.findWithZoneById(1L)).thenReturn(Optional.of(network));
         when(measurements.findByNetworkIdOrderByMeasuredAtDesc(eq(1L), any()))
@@ -107,5 +135,19 @@ class NetworkAnalysisFacadeTest {
                 .isInstanceOf(ResourceNotFoundException.class);
         assertThatThrownBy(() -> facade.analyze(1L, AnalysisType.STATISTICAL, null))
                 .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void theStrategyRunsOutsideAnyTransactionSoTheAiNeverHoldsADatabaseConnection() {
+        java.util.concurrent.atomic.AtomicBoolean openWhileAnalyzing = new java.util.concurrent.atomic.AtomicBoolean(true);
+        when(strategy.analyze(any())).thenAnswer(invocation -> {
+            openWhileAnalyzing.set(transactions.open);
+            return AnalysisOutcome.of(NetworkStatus.NORMAL, 0.1, "Sin novedades");
+        });
+
+        facade.analyze(1L, AnalysisType.THRESHOLD, null);
+
+        assertThat(openWhileAnalyzing.get()).isFalse();
+        verify(results).save(any(AnalysisResult.class));
     }
 }
