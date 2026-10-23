@@ -1,4 +1,4 @@
-# Revisión de seguridad de WiFiSense (Avance 17)
+# Revisión de seguridad de WiFiSense (Avances 17 y 18)
 
 Revisión final del sistema completo (página, backend, servicio de IA, agente y base de datos) frente al
 **OWASP Top 10 (2021)**. Para cada riesgo: qué hace WiFiSense, dónde está y qué prueba automática lo comprueba. Al
@@ -26,7 +26,7 @@ página). Los secretos (`JWT_SECRET`, contraseña de la base, `AI_API_KEY`, `ADM
 | **A02 Fallas criptográficas** | HTTPS en todo; contraseñas con BCrypt; la contraseña además viaja cifrada con RSA-OAEP (reto de un solo uso de 2 minutos); claves de agente, códigos, refresh tokens y enlaces de recuperación de 256 bits guardados solo como SHA-256; las MAC nunca salen del computador (huella SHA-256 con sal) | `PasswordCipherTest`, `AgentKeyServiceTest`, `SessionServiceTest`, pruebas de la base (`integridad_test.sql`, `sensor_test.sql`) |
 | **A03 Inyección** | JPA y `JdbcTemplate` siempre con parámetros (`?`), nunca SQL armado con texto del usuario; validación de cada campo con los mismos rangos que la base (`@Valid`, `CHECK` en PostgreSQL); la página no usa `dangerouslySetInnerHTML` y su CSP no permite scripts en línea | Pruebas de validación de cada DTO (`forgedValuesAreRejectedBeforeReachingTheService`), restricciones probadas en `schema_test.sql` |
 | **A04 Diseño inseguro** | Límites por usuario y por dirección: inicio de sesión (5 fallos → 10 min), registro (5 por hora), recuperación (5 cada 15 min), códigos del agente (10 cada 10 min), reportes del agente (1 cada 50 s por clave), prueba de conexión (20 transferencias cada 10 min); tamaño máximo de cada solicitud; respuestas iguales exista o no una cuenta | `LoginAttemptServiceTest`, `RegistrationThrottleTest`, `RecoveryThrottleTest`, `AgentReportThrottleTest`, `RequestSizeLimitFilterTest` |
-| **A05 Configuración insegura** | Errores en español sin trazas (`GlobalExceptionHandler`); actuator solo expone `health`; CORS solo para la URL de Vercel; la página envía CSP, `X-Frame-Options: DENY`, `nosniff`, `Referrer-Policy: no-referrer`, HSTS y `Permissions-Policy`; el servicio de IA no publica su documentación (`docs_url=None`) | `@WebMvcTest` de los controladores (respuestas de error), `security.test.ts` (cabeceras de `vercel.json`) |
+| **A05 Configuración insegura** | Errores en español sin trazas (`GlobalExceptionHandler`); actuator solo expone `health`; CORS solo para la URL de Vercel; la página envía CSP, `X-Frame-Options: DENY`, `nosniff`, `Referrer-Policy: no-referrer`, HSTS y `Permissions-Policy`; el servicio de IA no publica su documentación (`docs_url=None`) y **en Railway no arranca sin `AI_API_KEY`**; el build de Vercel se detiene si falta `VITE_API_URL` | `@WebMvcTest` de los controladores (respuestas de error), `security.test.ts` (cabeceras de `vercel.json`), `test_security_config.py`, `buildConfig.test.ts` |
 | **A06 Componentes vulnerables** | Versiones fijas (`pom.xml`, `requirements.txt`, `package-lock.json`); Dependabot propone cada mes las actualizaciones de los 4 repositorios; la página corre `npm audit` y la IA `pip-audit` en cada Pull Request | Workflows `pagina.yml` y `servicio-ia.yml`; revisión del 19/10/2026: 0 vulnerabilidades conocidas en npm y en pip |
 | **A07 Identificación y autenticación** | Política de contraseñas (10–12, mayúscula, número y especial); token de acceso de 15 min y refresh token de un solo uso (si se reusa uno, se cierra toda la sesión); cambiar la contraseña o el rol invalida los tokens anteriores; el token vive solo en la pestaña (`sessionStorage`) | `SessionServiceTest`, `SessionTokenValidatorTest`, integración `SessionFlowIntegrationTest`, `security.test.ts` |
 | **A08 Integridad de software y datos** | Las migraciones solo las aplica el dueño de la base; el rol de la aplicación no puede cambiar el esquema; el instalador del agente se construye en GitHub Actions desde el código del repositorio (nadie sube un `.exe` a mano); el agente solo acepta `https://` | `rol_aplicacion_test.sql`, workflow `agente-windows.yml`, `test_agent.py` |
@@ -46,6 +46,17 @@ página). Los secretos (`JWT_SECRET`, contraseña de la base, `AI_API_KEY`, `ADM
    ahora sí. Y el backend toma las migraciones de la rama de la base de datos con el mismo nombre si todavía no tiene
    merge: así un Pull Request del backend que necesita una migración nueva ya no falla por el orden de los merges.
 
+### Avance 18 (auditoría final)
+
+5. **IA abierta por un descuido de configuración.** Sin `AI_API_KEY` el servicio de IA aceptaba cualquier solicitud,
+   también en Railway. Ahora en Railway no arranca sin clave (en local sigue siendo opcional) y el backend avisa en su
+   log si llama a una IA remota sin clave.
+6. **IA que no responde.** Cada llamada esperaba 10 s: un reporte del sensor tardaba 30 s y el agente (que espera
+   30 s) podía darlo por perdido. Un proxy con Circuit Breaker corta las esperas (medido: 30 s → 0,1 s después de
+   abrirse) y el análisis con IA ya no ocupa una conexión a la base mientras espera.
+7. **Contrato backend ↔ IA sin pruebas.** Ahora hay pruebas de contrato en los dos lados (y en la página, para las
+   respuestas que muestra) con los mismos ejemplos JSON.
+
 ## Riesgos que quedan (y por qué se aceptan)
 
 - **Un computador con el agente puede ser engañado** por un equipo que anuncie un nombre falso por mDNS. Solo afecta a
@@ -60,6 +71,8 @@ página). Los secretos (`JWT_SECRET`, contraseña de la base, `AI_API_KEY`, `ADM
 ## Lista para cada despliegue
 
 - [ ] Ninguna variable secreta en el código, en el README ni en capturas (buscar `JWT_SECRET`, `sk-ant-`, `xkeysib-`).
+- [ ] `AI_API_KEY` definida e igual en el backend y en el servicio de IA (sin ella la IA no arranca en Railway).
+- [ ] `VITE_API_URL` definida en Vercel (sin ella el build se detiene).
 - [ ] `PLAIN_PASSWORDS_ALLOWED=false` en Railway cuando la página ya cifra las contraseñas.
 - [ ] El backend se conecta como `wifisense_app`, no como `postgres` (`tests/verificar_*.sql` en `OK`).
 - [ ] Public Access de Postgres apagado después de usar DBeaver.
