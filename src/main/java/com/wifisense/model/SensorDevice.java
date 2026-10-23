@@ -13,7 +13,7 @@ import java.util.Objects;
 @Entity
 @Table(name = "network_sensor_devices")
 @IdClass(SensorDevice.Key.class)
-public class SensorDevice {
+public class SensorDevice implements TrackedDevice {
 
     @Id
     @Column(name = "network_id")
@@ -70,6 +70,7 @@ public class SensorDevice {
         this.lastSeenAt = seenAt;
     }
 
+    @Override
     public void seen(Instant at) {
         if (at.isAfter(lastSeenAt)) {
             this.lastSeenAt = at;
@@ -77,6 +78,7 @@ public class SensorDevice {
     }
 
     /** Keeps the first maker the agent reported and the latest name the device announced. */
+    @Override
     public void identify(String vendor, String hostname) {
         if (this.vendor == null && vendor != null) {
             this.vendor = vendor;
@@ -87,6 +89,7 @@ public class SensorDevice {
     }
 
     /** Keeps the latest kind, role and model the agent reported (it learns more as devices announce themselves). */
+    @Override
     public void describe(String kind, String role, String model) {
         if (kind != null) {
             this.kind = kind;
@@ -100,6 +103,7 @@ public class SensorDevice {
     }
 
     /** A MAC never stops being random for the same fingerprint, so the flag is only ever turned on. */
+    @Override
     public void markPrivateMac(boolean privateMac) {
         this.privateMac = this.privateMac || privateMac;
     }
@@ -113,10 +117,12 @@ public class SensorDevice {
     }
 
     public Long getNetworkId() { return networkId; }
+    @Override
     public String getFingerprint() { return fingerprint; }
     public String getLabel() { return label; }
     public String getVendor() { return vendor; }
     public String getHostname() { return hostname; }
+    @Override
     public boolean isAuthorized() { return authorized; }
     public boolean isPrivateMac() { return privateMac; }
     public String getKind() { return kind; }

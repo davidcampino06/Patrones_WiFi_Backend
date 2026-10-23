@@ -6,7 +6,6 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.wifisense.analysis.*;
 import com.wifisense.dto.AgentReportAck;
 import com.wifisense.dto.AgentReportRequest;
-import com.wifisense.model.AgentDevice;
 import com.wifisense.model.AgentKey;
 import com.wifisense.model.AgentReport;
 import com.wifisense.model.AlertType;
@@ -41,14 +40,13 @@ public class AgentReportService {
     private final AgentReportThrottle throttle;
     private final AgentKeyRepository keys;
     private final AgentReportRepository reports;
-    private final AgentDeviceRepository devices;
     private final HomeNetworkRepository networks;
     private final AiAnalysisClient ai;
     private final AgentInsights insights;
     private final AgentAlertService alerts;
     private final TransactionTemplate transaction;
     private final AgentProperties properties;
-    private final DeviceSessionTracker sessions;
+    private final DeviceRegistry<?> deviceRegistry;
     private final ObjectMapper json;
     private final Clock clock;
 
@@ -61,14 +59,13 @@ public class AgentReportService {
         this.throttle = throttle;
         this.keys = keys;
         this.reports = reports;
-        this.devices = devices;
         this.networks = networks;
         this.ai = ai;
         this.insights = new AgentInsights(ai, json);
         this.alerts = alerts;
         this.transaction = transaction;
         this.properties = properties;
-        this.sessions = sessions;
+        this.deviceRegistry = new HomeDeviceRegistry(devices, sessions);
         this.json = json;
         this.clock = clock;
     }
@@ -80,13 +77,9 @@ public class AgentReportService {
         Instant now = Instant.now(clock);
 
         List<String> hashes = request.deviceHashesOrEmpty().stream().distinct().toList();
-        Map<String, String> vendors = request.vendorsByFingerprint();
-        Map<String, String> names = request.namesByFingerprint();
-        Set<String> privates = request.privateFingerprints();
         int deviceCount = Math.min(Math.max(request.deviceCount(), hashes.size()), 1024);
         Prepared prepared = Objects.requireNonNull(transaction.execute(status -> {
-            DeviceOutcome outcome = registerDevices(networkId, hashes, vendors, names, privates,
-                    request.identitiesByFingerprint(), now);
+            DeviceRegistry.Outcome outcome = deviceRegistry.register(networkId, request, now);
             return new Prepared(outcome.newDevices(), outcome.unauthorizedPresent(),
                     reports.findByNetworkIdOrderByReceivedAtDesc(networkId,
                             PageRequest.of(0, Math.max(properties.analysisWindow() - 1, 1))));
@@ -161,52 +154,7 @@ public class AgentReportService {
         }
     }
 
-    private static void describe(AgentDevice device, AgentReportRequest.Identity identity) {
-        if (identity != null) {
-            device.describe(identity.kind(), identity.role(), identity.model());
-        }
-    }
-
     private record Prepared(int newDevices, int unauthorizedPresent, List<AgentReport> previous) {
-    }
-
-    private record DeviceOutcome(int newDevices, int unauthorizedPresent) {
-    }
-
-    /**
-     * Records every device of the report and returns how many had never been seen on this network. The first report
-     * of a network only learns its devices: they are all "new", but announcing them would be noise.
-     */
-    private DeviceOutcome registerDevices(Long networkId, List<String> hashes, Map<String, String> vendors,
-                                          Map<String, String> names, Set<String> privates,
-                                          Map<String, AgentReportRequest.Identity> identities, Instant now) {
-        boolean learning = !devices.existsByNetworkId(networkId);
-        Map<String, AgentDevice> known = new HashMap<>();
-        devices.findByNetworkIdOrderByFirstSeenAtAsc(networkId).forEach(d -> known.put(d.getFingerprint(), d));
-        int fresh = 0;
-        int unauthorized = 0;
-        for (String hash : hashes) {
-            AgentDevice device = known.get(hash);
-            if (device == null) {
-                device = new AgentDevice(networkId, hash, now);
-                device.identify(vendors.get(hash), names.get(hash));
-                describe(device, identities.get(hash));
-                device.markPrivateMac(privates.contains(hash));
-                devices.save(device);
-                fresh++;
-            } else {
-                device.seen(now);
-                device.identify(vendors.get(hash), names.get(hash));  // fills maker/name for older devices
-                describe(device, identities.get(hash));
-                device.markPrivateMac(privates.contains(hash));
-                if (!device.isAuthorized()) {
-                    unauthorized++;
-                }
-            }
-        }
-        devices.flush();  // the periods below reference the devices just saved
-        sessions.track(DeviceSessionTracker.Owner.HOME, networkId, hashes, now);
-        return new DeviceOutcome(learning ? 0 : fresh, unauthorized);
     }
 
     /** Isolation Forest on this report, with the previous complete reports of the network as context. */

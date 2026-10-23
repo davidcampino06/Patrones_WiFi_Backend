@@ -43,7 +43,7 @@ class SensorDeviceServiceTest {
         when(devices.existsByNetworkId(5L)).thenReturn(false);
         when(devices.findByNetworkIdOrderByFirstSeenAtAsc(5L)).thenReturn(List.of());
 
-        SensorDeviceService.Outcome outcome = service.register(5L, report(PHONE, LAPTOP), NOW);
+        DeviceRegistry.Outcome outcome = service.register(5L, report(PHONE, LAPTOP), NOW);
 
         assertThat(outcome.newDevices()).isZero();
         ArgumentCaptor<SensorDevice> saved = ArgumentCaptor.forClass(SensorDevice.class);
@@ -79,7 +79,7 @@ class SensorDeviceServiceTest {
         when(devices.existsByNetworkId(5L)).thenReturn(true);
         when(devices.findByNetworkIdOrderByFirstSeenAtAsc(5L)).thenReturn(List.of(laptop));
 
-        SensorDeviceService.Outcome outcome = service.register(5L, report(LAPTOP, STRANGER, STRANGER), NOW);
+        DeviceRegistry.Outcome outcome = service.register(5L, report(LAPTOP, STRANGER, STRANGER), NOW);
 
         assertThat(outcome.newDevices()).isEqualTo(1);
         assertThat(outcome.unauthorizedPresent()).isEqualTo(1);
