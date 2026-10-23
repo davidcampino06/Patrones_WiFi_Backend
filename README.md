@@ -23,12 +23,14 @@ Java 21 · Spring Boot 3.5 · Spring Web · Spring Data JPA / Hibernate · Bean 
 | `repository` | Interfaces Spring Data. |
 | `service` | Casos de uso: redes, dispositivos, mediciones, alertas, reportes, monitoreo programado. |
 | `network` | Fuentes de datos (Factory Method), `decorator/` (Decorator) y `state/` (State). |
-| `analysis` | Estrategias de análisis (Strategy), cliente de IA y `NetworkAnalysisFacade` (Facade). |
+| `analysis` | Estrategias de análisis (Strategy), cliente de IA (`HttpAiAnalysisClient`, Adapter; `CircuitBreakerAiClient`, Proxy) y `NetworkAnalysisFacade` (Facade). |
 | `event` | Eventos y observadores (Observer). |
 | `security` | JWT, carga de usuarios, reglas de autorización y CORS. |
 | `config` | Beans transversales (`Clock`). |
 
-Los patrones, el problema que resuelve cada uno y los que se descartaron están en **[PATTERNS.md](PATTERNS.md)**.
+Nueve patrones verificados en el código, cada uno con su prueba: Factory Method, Decorator, Strategy, State, Observer,
+Facade, Adapter, Template Method y Proxy con Circuit Breaker. El problema que resuelve cada uno, un ejemplo de
+ejecución, el diagrama de clases y los patrones que se investigaron y descartaron están en **[PATTERNS.md](PATTERNS.md)**.
 
 ## POO y SOLID en el código
 
@@ -225,6 +227,19 @@ integración corren con ese mismo usuario.
 se guarda en `ai_predictions` y marca si los datos eran simulados. Si la IA no responde, la API devuelve 503 y las
 estrategias de umbrales y estadística siguen funcionando.
 
+**IA caída sin esperas** (`CircuitBreakerAiClient`, Avance 18). Todas las llamadas a la IA pasan por un proxy con
+Circuit Breaker: después de 2 fallas seguidas por no responder, durante 30 s cualquier llamada falla al instante (y
+quien la hizo sigue como antes: el reporte se guarda sin veredictos). Medido en local con una IA que acepta la
+conexión pero no responde: cada reporte de un sensor tardaba **30 s** (tres llamadas de 10 s); con el proxy, el primero
+tarda 21 s y los siguientes **0,1 s**. El análisis con IA ya no espera dentro de una transacción: la estrategia corre
+entre dos transacciones cortas.
+
+**Contrato con la IA.** `src/test/resources/contracts` tiene ejemplos reales de lo que el backend envía y la IA
+responde; el repositorio de la IA tiene los mismos archivos en `tests/contracts`. `AiContractTest` comprueba que el
+backend envía exactamente esas solicitudes (con el `ObjectMapper` de Spring Boot) y que el código que lee las
+respuestas las acepta; la IA comprueba que acepta esas solicitudes y sigue respondiendo cada campo. Si se cambia el
+contrato, hay que actualizar los ejemplos en los dos repositorios.
+
 La IA también entrega la **causa probable** de cada anomalía (`anomalyType`: congestión,
 interferencia, cobertura débil, falla del proveedor, tráfico sospechoso o no identificada). Se guarda en
 `ai_predictions.anomaly_type` (migración V15) y se valida al leerla (`AnomalyType.fromAi`): un valor inesperado
@@ -295,16 +310,19 @@ No hay usuarios de demostración. Al arrancar se crea (o actualiza) el administr
 
 ## Pruebas
 
-`src/test/java` (convención Maven), 351 pruebas:
+`src/test/java` (convención Maven), 376 pruebas:
 
-- **Unitarias y de controladores (339):** fuentes de datos y decoradores, transiciones de estado, las tres
+- **Unitarias y de controladores (361):** fuentes de datos y decoradores, transiciones de estado, las tres
   estrategias, la fachada con mocks, observadores, ciclo de vida de alertas y `@WebMvcTest` que verifica seguridad por
   rol, validación y errores 404, el agente (claves, límite de reportes, equipos nuevos y con MAC privada, canal
   recomendado, IA caída), el panel del equipo con datos reales, las sesiones (rotación, copia detectada, cambio de
   contraseña y de rol), la limpieza nocturna por lotes y el sensor de las redes del equipo (código, clave, reporte
   convertido en medición con tráfico y protocolos, fuentes permitidas, equipos, auditoría y alertas del sensor), el
-  tipo de cada equipo y el modo "¿Cuál es este equipo?" (reportes cada minuto) y el entrenamiento de la IA.
-- **De integración con PostgreSQL real (12, paquete `integration`):** el backend completo contra una base creada con
+  tipo de cada equipo y el modo "¿Cuál es este equipo?" (reportes cada minuto) y el entrenamiento de la IA. Desde el
+  Avance 18 también el Circuit Breaker (`CircuitBreakerAiClientTest`), el método plantilla de las fuentes
+  (`DataSourceCreatorTemplateTest`) y el de los equipos (`DeviceRegistryTest`), el análisis fuera de la
+  transacción y el contrato con la IA (`AiContractTest`).
+- **De integración con PostgreSQL real (15, paquete `integration`):** el backend completo contra una base creada con
   las migraciones de WiFiSense-database, conectado como `wifisense_app`. Prueban por HTTP el registro, el inicio de
   sesión sin importar mayúsculas, la renovación, la copia de un refresh token, el cierre de sesión, el cambio de
   contraseña y de rol; y en SQL que un refresh token se gasta una sola vez, que las estadísticas del reporte calculadas
@@ -314,7 +332,9 @@ No hay usuarios de demostración. Al arrancar se crea (o actualiza) el administr
   quitar el sensor deja la clave sin efecto. Y el historial de conexiones (con la tolerancia de 12 minutos) y el
   reporte semanal con los días de Colombia (una medición de las 23:30 del lunes cuenta el lunes, aunque en UTC ya sea
   martes). Y el entrenamiento de la IA: solo mediciones reales (nunca simuladas), mínimo 300, historial de versiones
-  y reconstrucción de la versión activa cuando la IA se reinicia.
+  y reconstrucción de la versión activa cuando la IA se reinicia. Y el aislamiento entre usuarios: cambiar el id de
+  una red en el navegador nunca muestra ni cambia datos de otra persona (responde 404, igual que una red que no
+  existe) y un usuario final no sabe que existen las rutas del equipo (`UserIsolationIntegrationTest`).
   Se ejecutan cuando existe `WIFISENSE_IT_DATABASE_URL`.
 
 **GitHub Actions** (`.github/workflows/backend.yml`) corre en cada Pull Request y en `main`: crea PostgreSQL 16 con las
@@ -326,7 +346,12 @@ y de la imagen de Docker.
 
 ## Documentos
 
-- [PATTERNS.md](PATTERNS.md): los patrones de diseño, por qué y dónde.
+- [PATTERNS.md](PATTERNS.md): los 9 patrones de diseño, por qué, dónde, un ejemplo y su prueba; los investigados y
+  descartados; diagrama de clases.
+- [docs/arquitectura.md](docs/arquitectura.md): componentes, cómo se comunican, qué protege cada conexión y las
+  variables de entorno de cada uno.
+- [docs/auditoria_final.md](docs/auditoria_final.md): auditoría de los 4 repositorios contra los requisitos, lo
+  corregido, las pruebas ejecutadas y lo que queda pendiente.
 - [DEPLOYMENT.md](DEPLOYMENT.md): desplegar en Railway paso a paso.
 - [docs/seguridad.md](docs/seguridad.md): revisión de seguridad frente al OWASP Top 10, lo corregido y los riesgos que
   quedan.
