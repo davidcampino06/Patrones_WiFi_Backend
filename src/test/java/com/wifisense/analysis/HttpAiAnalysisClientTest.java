@@ -144,4 +144,12 @@ class HttpAiAnalysisClientTest {
 
         assertThatThrownBy(() -> client(closed).modelInfo()).isInstanceOf(AiServiceUnavailableException.class);
     }
+
+    @Test
+    void knowsWhenTheServiceIsLocalToWarnAboutAMissingKeyOnlyInProduction() {
+        assertThat(HttpAiAnalysisClient.isLocal("http://localhost:8000")).isTrue();
+        assertThat(HttpAiAnalysisClient.isLocal("http://127.0.0.1:8000")).isTrue();
+        assertThat(HttpAiAnalysisClient.isLocal("http://wifisense-ai.railway.internal:8080")).isFalse();
+        assertThat(HttpAiAnalysisClient.isLocal("https://ia.example.com")).isFalse();
+    }
 }

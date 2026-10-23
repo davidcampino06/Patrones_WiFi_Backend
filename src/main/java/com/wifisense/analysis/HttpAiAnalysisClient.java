@@ -1,6 +1,8 @@
 package com.wifisense.analysis;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
@@ -13,8 +15,16 @@ import java.net.http.HttpClient;
 import java.time.Duration;
 import java.util.Optional;
 
+/**
+ * <b>Adapter</b> between the Java code and the REST API of the AI service (Python/FastAPI): it turns each method of
+ * {@link AiAnalysisClient} into its HTTP call (path, X-API-Key header, JSON, timeouts) and every HTTP or network error
+ * into {@link AiServiceUnavailableException}, so the rest of the backend never sees HTTP details. In the application
+ * it is wrapped by {@link CircuitBreakerAiClient}.
+ */
 @Component
 public class HttpAiAnalysisClient implements AiAnalysisClient {
+
+    private static final Logger log = LoggerFactory.getLogger(HttpAiAnalysisClient.class);
 
     private static final String DETECT_PATH = "/api/v1/anomalies/detect";
     private static final String MODEL_PATH = "/api/v1/model";
@@ -31,9 +41,18 @@ public class HttpAiAnalysisClient implements AiAnalysisClient {
     private final RestClient trainingClient;
 
     public HttpAiAnalysisClient(RestClient.Builder builder, AiServiceProperties properties) {
+        if (!StringUtils.hasText(properties.apiKey()) && !isLocal(properties.url())) {
+            // the AI service in Railway refuses to start without a key; this makes the cause visible on this side too
+            log.warn("AI_API_KEY is not set but the AI service is at {}: its calls will be rejected", properties.url());
+        }
         this.restClient = client(builder.clone(), properties, properties.timeout());
         // Training takes a few seconds per thousand measurements: its own client waits longer.
         this.trainingClient = client(builder.clone(), properties, TRAINING_TIMEOUT);
+    }
+
+    static boolean isLocal(String url) {
+        String host = url == null ? "" : java.net.URI.create(url).getHost();
+        return host == null || host.equals("localhost") || host.equals("127.0.0.1") || host.equals("::1");
     }
 
     private static RestClient client(RestClient.Builder builder, AiServiceProperties properties, Duration readTimeout) {
