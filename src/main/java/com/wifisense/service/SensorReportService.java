@@ -96,7 +96,7 @@ public class SensorReportService {
                             + "»: el reporte no se guardó. Conéctalo a «" + ssid + "» o usa el código de esa red."));
         }
 
-        SensorDeviceService.Outcome seen = devices.register(networkId, request, now);
+        DeviceRegistry.Outcome seen = devices.register(networkId, request, now);
         int deviceCount = Math.min(Math.max(request.deviceCount(), request.deviceHashesOrEmpty().size()), 1024);
         int newDevices = Math.min(seen.newDevices(), deviceCount);
         boolean measured = request.latencyMs() != null && request.jitterMs() != null && request.packetLossPct() != null;

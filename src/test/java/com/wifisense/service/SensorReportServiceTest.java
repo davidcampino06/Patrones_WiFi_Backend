@@ -64,7 +64,7 @@ class SensorReportServiceTest {
         ReflectionTestUtils.setField(sensor, "id", 8L);
         when(sensors.authenticate(KEY)).thenReturn(Optional.of(sensor));
         when(networks.getReferenceById(5L)).thenReturn(library);
-        when(devices.register(eq(5L), any(), eq(NOW))).thenReturn(new SensorDeviceService.Outcome(0, 0));
+        when(devices.register(eq(5L), any(), eq(NOW))).thenReturn(new DeviceRegistry.Outcome(0, 0));
         when(collection.record(eq(5L), any(), eq(DataSourceType.AGENT))).thenReturn(new MeasurementResponse(40L, 5L,
                 21.5, 2.0, 0.0, 433.3, -58, 6, DataSourceType.AGENT, false, NOW));
         when(ai.securityAssess(any())).thenThrow(new AiServiceUnavailableException("IA caída", null));
@@ -135,7 +135,7 @@ class SensorReportServiceTest {
         when(ai.securityAssess(any())).thenReturn(JSON.readTree(
                 "{\"score\": 74, \"grade\": \"ACCEPTABLE\", \"summary\": \"Bien\", \"findings\": []}"));
         when(ai.qualityScore(any())).thenReturn(JSON.readTree("{\"score\": 88}"));
-        when(devices.register(eq(5L), any(), eq(NOW))).thenReturn(new SensorDeviceService.Outcome(1, 0));
+        when(devices.register(eq(5L), any(), eq(NOW))).thenReturn(new DeviceRegistry.Outcome(1, 0));
 
         AgentReportAck ack = service.receive(KEY, report(21.5, null, null, null)).orElseThrow();
 
@@ -181,7 +181,7 @@ class SensorReportServiceTest {
 
     @Test
     void aDeviceMarkedAsNotAuthorizedThatIsConnectedIsAnAlert() {
-        when(devices.register(eq(5L), any(), eq(NOW))).thenReturn(new SensorDeviceService.Outcome(0, 1));
+        when(devices.register(eq(5L), any(), eq(NOW))).thenReturn(new DeviceRegistry.Outcome(0, 1));
 
         service.receive(KEY, report(21.5, null, null, null));
 
