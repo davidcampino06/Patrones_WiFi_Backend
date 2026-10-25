@@ -1,6 +1,8 @@
 # Dependabot opens a Pull Request when a dependency has a new version (for example a security fix): Maven libraries,
 # the GitHub Actions of the workflow and the Docker base images. Once a month and at most 3 at a time, so the team
 # can review them; Spring Boot updates come grouped in one Pull Request.
+# Spring Boot 4 is a new major version (Jackson 3, packages renamed): its Pull Request failed the checks, so major
+# versions are ignored here and the upgrade is done on purpose, not by Dependabot.
 version: 2
 updates:
   - package-ecosystem: maven
@@ -11,6 +13,9 @@ updates:
     groups:
       spring-boot:
         patterns: ["org.springframework*"]
+    ignore:
+      - dependency-name: "org.springframework.boot:spring-boot-starter-parent"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: github-actions
     directory: /
     schedule:
