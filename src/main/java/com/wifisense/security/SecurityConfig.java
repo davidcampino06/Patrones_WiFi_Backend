@@ -66,8 +66,11 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/auth/challenge").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/password/forgot", "/api/auth/password/reset").permitAll()
                         .requestMatchers("/actuator/health").permitAll()
-                        // The agent has no session: AgentReportService checks its own key (X-Agent-Key).
-                        .requestMatchers(HttpMethod.POST, "/api/agent/reports", "/api/agent/pair").permitAll()
+                        // The agent has no session: AgentReportService and AgentScanService check its own key
+                        // (X-Agent-Key).
+                        .requestMatchers(HttpMethod.POST, "/api/agent/reports", "/api/agent/pair", "/api/agent/scans")
+                        .permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/agent/scans/next").permitAll()
                         .requestMatchers("/api/auth/me").authenticated()
                         .requestMatchers("/api/my/**").hasRole(END_USER)
                         .requestMatchers("/api/users/**", "/api/observability/**").hasRole(ADMIN)
