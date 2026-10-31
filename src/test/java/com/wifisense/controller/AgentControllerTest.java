@@ -1,11 +1,16 @@
 package com.wifisense.controller;
 
 import com.wifisense.dto.AgentReportAck;
+import com.wifisense.dto.AgentScanTask;
+import com.wifisense.model.HomeNetwork;
+import com.wifisense.model.ScanOrigin;
+import com.wifisense.model.WifiScanSession;
 import com.wifisense.security.SecurityConfig;
 import com.wifisense.security.SecurityProperties;
 import com.wifisense.service.AgentPairingService;
 import com.wifisense.service.AgentReportLimitException;
 import com.wifisense.service.AgentReportService;
+import com.wifisense.service.AgentScanService;
 import com.wifisense.service.InvalidAgentKeyException;
 import com.wifisense.service.SensorReportService;
 import org.junit.jupiter.api.Test;
@@ -19,6 +24,7 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.time.Instant;
 import java.util.Optional;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -49,6 +55,8 @@ class AgentControllerTest {
     private AgentPairingService pairing;
     @MockitoBean
     private SensorReportService sensors;
+    @MockitoBean
+    private AgentScanService scans;
     @MockitoBean
     private UserDetailsService userDetailsService;
 
@@ -164,5 +172,82 @@ class AgentControllerTest {
         mvc.perform(post("/api/agent/pair").contentType(MediaType.APPLICATION_JSON).content("{\"code\":\"X\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.detail").value(org.hamcrest.Matchers.startsWith("El código no es válido")));
+    }
+
+    @Test
+    void theAnswerToAReportCarriesTheScanToRunNow() throws Exception {
+        when(service.receive(eq(KEY), any())).thenReturn(new AgentReportAck(9L, 2, 0, 90, "SECURE", false,
+                "2 equipos conectados."));
+        when(scans.dueWithReport(KEY)).thenReturn(Optional.of(50L));
+
+        mvc.perform(post("/api/agent/reports").header("X-Agent-Key", KEY).contentType(MediaType.APPLICATION_JSON)
+                        .content(REPORT))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.scanId").value(50));
+    }
+
+    @Test
+    void aProblemWithTheScansNeverTurnsASavedReportIntoAnError() throws Exception {
+        when(service.receive(eq(KEY), any())).thenReturn(new AgentReportAck(9L, 2, 0, 90, "SECURE", false,
+                "2 equipos conectados."));
+        when(scans.dueWithReport(KEY)).thenThrow(new IllegalStateException("database down"));
+
+        mvc.perform(post("/api/agent/reports").header("X-Agent-Key", KEY).contentType(MediaType.APPLICATION_JSON)
+                        .content(REPORT))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.reportId").value(9))
+                .andExpect(jsonPath("$.scanId").doesNotExist());
+    }
+
+    @Test
+    void theSensorOfATeamNetworkIsNeverAskedToScan() throws Exception {
+        when(sensors.receive(eq(KEY), any())).thenReturn(Optional.of(new AgentReportAck(31L, 2, 0, null, null, false,
+                "Sensor.")));
+
+        mvc.perform(post("/api/agent/reports").header("X-Agent-Key", KEY).contentType(MediaType.APPLICATION_JSON)
+                        .content(REPORT))
+                .andExpect(status().isCreated());
+        verifyNoInteractions(scans);
+    }
+
+    @Test
+    void betweenReportsTheAgentAsksForAScanWithItsKeyAndNoSession() throws Exception {
+        when(scans.next(KEY)).thenReturn(Optional.of(new AgentScanTask(50L)), Optional.empty());
+
+        mvc.perform(get("/api/agent/scans/next").header("X-Agent-Key", KEY))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.scanId").value(50));
+        mvc.perform(get("/api/agent/scans/next").header("X-Agent-Key", KEY)).andExpect(status().isNoContent());
+    }
+
+    @Test
+    void theAgentDeliversWhatItSaw() throws Exception {
+        WifiScanSession scan = new WifiScanSession(mock(HomeNetwork.class), ScanOrigin.MANUAL, null,
+                Instant.parse("2026-10-26T20:00:00Z"));
+        scan.complete(Instant.parse("2026-10-26T20:00:05Z"),
+                new WifiScanSession.ScanDetails("Wi-Fi", "NETSH", true, 4000, "1.9.0"), 1, 1);
+        when(scans.receive(eq(KEY), any())).thenReturn(scan);
+
+        mvc.perform(post("/api/agent/scans").header("X-Agent-Key", KEY).contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"scanId":50,"status":"COMPLETED","interfaceName":"Wi-Fi","scanTool":"NETSH",
+                                 "fresh":true,"durationMs":4000,"agentVersion":"1.9.0",
+                                 "accessPoints":[{"bssid":"aaaaaaaaaaaaaaaaaaaaaaaa","bssidSuffix":"F1",
+                                   "ssid":"Café ☕","signalPercent":72,"channel":6,"band":"2.4",
+                                   "authentication":"WPA2","securityLabel":"WPA2-Personal","cipher":"CCMP"}]}"""))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("COMPLETED"));
+    }
+
+    @Test
+    void aScanResultWithTheBssidOrForgedValuesIsRejected() throws Exception {
+        mvc.perform(post("/api/agent/scans").header("X-Agent-Key", KEY).contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"scanId":50,"status":"DONE","failureReason":"HACKED","scanTool":"IWLIST",
+                                 "accessPoints":[{"bssid":"a4:2b:b0:12:34:56","bssidSuffix":"12:34",
+                                   "signalPercent":180,"channel":0,"band":"60","authentication":"WPA9"}]}"""))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors.status").value("Estado de escaneo desconocido."))
+                .andExpect(jsonPath("$.errors['accessPoints[0].bssid']").value("Huella de BSSID inválida."));
+        verifyNoInteractions(scans);
     }
 }
