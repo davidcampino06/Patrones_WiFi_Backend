@@ -1,6 +1,7 @@
 package com.wifisense.service;
 
 import com.wifisense.dto.AgentReportRequest;
+import com.wifisense.model.NameSource;
 import com.wifisense.model.TrackedDevice;
 
 import java.time.Instant;
@@ -40,6 +41,7 @@ public abstract class DeviceRegistry<D extends TrackedDevice> {
         List<String> hashes = request.deviceHashesOrEmpty().stream().distinct().toList();
         Map<String, String> vendors = request.vendorsByFingerprint();
         Map<String, String> names = request.namesByFingerprint();
+        Map<String, NameSource> sources = request.nameSourcesByFingerprint();
         Map<String, AgentReportRequest.Identity> identities = request.identitiesByFingerprint();
         Set<String> privates = request.privateFingerprints();
         boolean learning = !hasDevices(networkId);
@@ -55,7 +57,7 @@ public abstract class DeviceRegistry<D extends TrackedDevice> {
             } else {
                 device.seen(now);
             }
-            device.identify(vendors.get(hash), names.get(hash));
+            device.identify(vendors.get(hash), names.get(hash), sources.get(hash));
             AgentReportRequest.Identity identity = identities.get(hash);
             if (identity != null) {
                 device.describe(identity.kind(), identity.role(), identity.model());
