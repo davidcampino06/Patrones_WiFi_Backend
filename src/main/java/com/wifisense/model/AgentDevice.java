@@ -31,6 +31,11 @@ public class AgentDevice implements TrackedDevice {
     @Column(length = 63)
     private String hostname;
 
+    /** Where the name came from (CONFIRMED, ANNOUNCED, ROUTER, DNS); null without a name or from an old agent. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "name_source", length = 10)
+    private NameSource nameSource;
+
     /** FALSE when the user marked the device as not theirs; it is then shown in red and keeps raising an alert. */
     @Column(nullable = false)
     private boolean authorized = true;
@@ -85,6 +90,14 @@ public class AgentDevice implements TrackedDevice {
         }
     }
 
+    @Override
+    public void identify(String vendor, String hostname, NameSource source) {
+        identify(vendor, hostname);
+        if (hostname != null && !hostname.isBlank()) {
+            this.nameSource = source;
+        }
+    }
+
     /** Keeps the latest kind, role and model the agent reported (it learns more as devices announce themselves). */
     @Override
     public void describe(String kind, String role, String model) {
@@ -119,6 +132,8 @@ public class AgentDevice implements TrackedDevice {
     public String getLabel() { return label; }
     public String getVendor() { return vendor; }
     public String getHostname() { return hostname; }
+    @Override
+    public NameSource getNameSource() { return nameSource; }
     @Override
     public boolean isAuthorized() { return authorized; }
     public boolean isPrivateMac() { return privateMac; }

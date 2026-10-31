@@ -17,6 +17,7 @@ import com.wifisense.service.InvalidPairingCodeException;
 import com.wifisense.service.InvalidResetLinkException;
 import com.wifisense.service.InvalidAccountException;
 import com.wifisense.service.ResourceNotFoundException;
+import com.wifisense.service.ScanLimitException;
 import com.wifisense.service.UserLimitException;
 import com.wifisense.speedtest.SpeedTestLimitException;
 import org.slf4j.Logger;
@@ -124,6 +125,13 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(AgentReportLimitException.class)
     ResponseEntity<ProblemDetail> agentTooFast(AgentReportLimitException e) {
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .header(HttpHeaders.RETRY_AFTER, String.valueOf(e.getRetryAfterSeconds()))
+                .body(problem(HttpStatus.TOO_MANY_REQUESTS, e.getMessage()));
+    }
+
+    @ExceptionHandler(ScanLimitException.class)
+    ResponseEntity<ProblemDetail> scanTooSoon(ScanLimitException e) {
         return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
                 .header(HttpHeaders.RETRY_AFTER, String.valueOf(e.getRetryAfterSeconds()))
                 .body(problem(HttpStatus.TOO_MANY_REQUESTS, e.getMessage()));

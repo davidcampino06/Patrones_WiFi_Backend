@@ -89,7 +89,7 @@ public class SensorOverviewService {
                         latestAt != null && !d.getLastSeenAt().isBefore(latestAt),
                         d.getFirstSeenAt().isAfter(learnedAt)
                                 && d.getFirstSeenAt().isAfter(now.minus(AgentOverviewService.RECENT_DEVICE)),
-                        d.getKind(), d.getRole(), d.getModel()))
+                        d.getKind(), d.getRole(), d.getModel(), d.getNameSource()))
                 .toList();
     }
 

@@ -1,6 +1,8 @@
 package com.wifisense.dto;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.wifisense.model.DeviceIdentification;
+import com.wifisense.model.NameSource;
 
 import java.time.Instant;
 import java.util.List;
@@ -35,11 +37,27 @@ public record AgentOverview(KeyInfo key, boolean online, Report latest, List<His
      * {@code privateMac}: uses a random address, so it is almost surely a phone or tablet. {@code online}: present in
      * the latest report. {@code recent}: joined in the last 24 hours. {@code kind}: PHONE, COMPUTER, TV... (a guess of
      * the agent). {@code role}: SELF (the computer the agent runs on) or ROUTER. {@code model}: the model the device
-     * announces.
+     * announces. {@code nameSource}: where the name came from (agent 2.0.0). {@code identification}: how well the
+     * device is identified, from ALIAS (the user named it) to UNKNOWN (see {@link DeviceIdentification}).
      */
     public record Device(String id, String label, String vendor, String hostname, boolean privateMac,
                          boolean authorized, Instant firstSeenAt, Instant lastSeenAt, boolean online, boolean recent,
-                         String kind, String role, String model) {
+                         String kind, String role, String model, NameSource nameSource,
+                         DeviceIdentification identification) {
+
+        public Device(String id, String label, String vendor, String hostname, boolean privateMac, boolean authorized,
+                      Instant firstSeenAt, Instant lastSeenAt, boolean online, boolean recent, String kind,
+                      String role, String model, NameSource nameSource) {
+            this(id, label, vendor, hostname, privateMac, authorized, firstSeenAt, lastSeenAt, online, recent, kind,
+                    role, model, nameSource, DeviceIdentification.of(label, hostname, nameSource, vendor, kind));
+        }
+
+        public Device(String id, String label, String vendor, String hostname, boolean privateMac, boolean authorized,
+                      Instant firstSeenAt, Instant lastSeenAt, boolean online, boolean recent, String kind,
+                      String role, String model) {
+            this(id, label, vendor, hostname, privateMac, authorized, firstSeenAt, lastSeenAt, online, recent, kind,
+                    role, model, null);
+        }
 
         public Device(String id, String label, String vendor, String hostname, boolean privateMac, boolean authorized,
                       Instant firstSeenAt, Instant lastSeenAt, boolean online, boolean recent) {

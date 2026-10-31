@@ -95,7 +95,7 @@ public class AgentOverviewService {
                         d.isPrivateMac(), d.isAuthorized(), d.getFirstSeenAt(), d.getLastSeenAt(),
                         latestAt != null && !d.getLastSeenAt().isBefore(latestAt),
                         d.getFirstSeenAt().isAfter(learnedAt) && d.getFirstSeenAt().isAfter(now.minus(RECENT_DEVICE)),
-                        d.getKind(), d.getRole(), d.getModel()))
+                        d.getKind(), d.getRole(), d.getModel(), d.getNameSource()))
                 .toList();
     }
 

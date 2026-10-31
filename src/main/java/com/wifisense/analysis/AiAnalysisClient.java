@@ -30,6 +30,15 @@ public interface AiAnalysisClient {
      */
     JsonNode trainModel(JsonNode request);
 
+    /**
+     * Facts and inferences about the networks one scan saw around the agent (channels, security, look-alikes),
+     * keeping apart what was seen from what is inferred (with its confidence). Clients without it (test doubles)
+     * behave as if the AI were down.
+     */
+    default JsonNode nearbyAnalyze(AiNearbyRequest request) {
+        throw new AiServiceUnavailableException("El análisis de redes cercanas no está disponible.");
+    }
+
     /** True when the AI service answers its health check; never throws. */
     boolean isHealthy();
 }

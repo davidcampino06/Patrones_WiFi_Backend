@@ -84,6 +84,15 @@ wifisense:
     online-window: 15m
     analysis-window: 20   # reports the anomaly detection receives as context
     history-size: 48
+  scan:  # nearby Wi-Fi networks seen by the agent of Mi Wi-Fi (Redes cercanas)
+    scheduled-interval: 60m      # the server asks for a scan when the last one is older than this
+    manual-min-interval: 30s     # "Escanear ahora" at most this often
+    agent-timeout: 3m            # a scan not finished by the agent in this time fails (AGENT_NO_RESPONSE)
+    poll-min-interval: 10s       # the agent asks for pending scans every 30 s; faster is rejected with 429
+    stale-after: 150m            # the page marks the last result as out of date after this
+    max-access-points: 200       # strongest access points kept from one scan
+    retention: 30d               # scans (and their observations) deleted every night after this
+    access-point-retention: 90d  # access points not seen for this long are deleted
   data-sources:
     demo-enabled: ${DEMO_DATA_SOURCES:false}  # true only for local demos: simulated networks and the server's own probe
     simulation:
