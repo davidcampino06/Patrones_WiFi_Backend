@@ -81,11 +81,19 @@ public record AgentReportRequest(
             @Size(max = 63) String model,
             @Pattern(regexp = "^(PHONE|COMPUTER|TV|PRINTER|CAMERA|SPEAKER|CONSOLE|IOT)$",
                     message = "Tipo de equipo desconocido.") String kind,
-            @Pattern(regexp = "^(SELF|ROUTER)$", message = "Rol de equipo desconocido.") String role) {
+            @Pattern(regexp = "^(SELF|ROUTER)$", message = "Rol de equipo desconocido.") String role,
+            @Pattern(regexp = "^(CONFIRMED|ANNOUNCED|ROUTER|DNS)$", message = "Origen del nombre desconocido.")
+            String nameSource) {
 
         /** A device as agents older than 1.7.0 describe it. */
         public DeviceInfo(String id, String vendor, String name, Boolean privateMac) {
-            this(id, vendor, name, privateMac, null, null, null);
+            this(id, vendor, name, privateMac, null, null, null, null);
+        }
+
+        /** A device as agents 1.7.0 to 1.9.x describe it (without where the name came from). */
+        public DeviceInfo(String id, String vendor, String name, Boolean privateMac, String model, String kind,
+                          String role) {
+            this(id, vendor, name, privateMac, model, kind, role, null);
         }
     }
 
@@ -126,6 +134,21 @@ public record AgentReportRequest(
     /** Maker per fingerprint, blank for the old agent that did not send it. */
     public java.util.Map<String, String> vendorsByFingerprint() {
         return fieldByFingerprint(DeviceInfo::vendor);
+    }
+
+    /** Where each name came from (agent 2.0.0); only for devices that sent a name and a known source. */
+    public java.util.Map<String, com.wifisense.model.NameSource> nameSourcesByFingerprint() {
+        if (devices == null) {
+            return java.util.Map.of();
+        }
+        java.util.Map<String, com.wifisense.model.NameSource> byId = new java.util.HashMap<>();
+        for (DeviceInfo device : devices) {
+            com.wifisense.model.NameSource source = com.wifisense.model.NameSource.parse(device.nameSource());
+            if (source != null && device.name() != null && !device.name().isBlank()) {
+                byId.putIfAbsent(device.id(), source);
+            }
+        }
+        return byId;
     }
 
     /** Announced name per fingerprint, blank for the old agent that did not send it. */
