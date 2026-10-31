@@ -15,9 +15,10 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
 /**
- * Rejects oversized API bodies (e.g. a huge paste into the login form) before they are parsed. Two routes need more:
- * the speed-test upload (its own limit) and the reports of the agent, which list up to 256 devices with their name,
- * model and kind (about 200 bytes each since agent 1.7.0: a network of a university passes 16 KB easily).
+ * Rejects oversized API bodies (e.g. a huge paste into the login form) before they are parsed. Some routes need more:
+ * the speed-test upload (its own limit) and what the agent delivers: its reports, which list up to 256 devices with
+ * their name, model and kind (about 200 bytes each since agent 1.7.0: a network of a university passes 16 KB easily),
+ * and the result of a scan (up to 300 access points of about 250 bytes).
  */
 @Component
 public class RequestSizeLimitFilter extends OncePerRequestFilter {
@@ -26,6 +27,7 @@ public class RequestSizeLimitFilter extends OncePerRequestFilter {
     static final long MAX_AGENT_REPORT_BYTES = 128 * 1024;
     public static final String UPLOAD_PATH = "/api/my/speedtest/upload";
     public static final String AGENT_REPORT_PATH = "/api/agent/reports";
+    static final java.util.Set<String> AGENT_RESULT_PATHS = java.util.Set.of(AGENT_REPORT_PATH, "/api/agent/scans");
 
     private final long maxUploadBytes;
 
@@ -60,7 +62,7 @@ public class RequestSizeLimitFilter extends OncePerRequestFilter {
         if (UPLOAD_PATH.equals(uri)) {
             return maxUploadBytes;
         }
-        return AGENT_REPORT_PATH.equals(uri) ? MAX_AGENT_REPORT_BYTES : MAX_BODY_BYTES;
+        return AGENT_RESULT_PATHS.contains(uri) ? MAX_AGENT_REPORT_BYTES : MAX_BODY_BYTES;
     }
 
     static void reject(HttpServletResponse response) throws IOException {
