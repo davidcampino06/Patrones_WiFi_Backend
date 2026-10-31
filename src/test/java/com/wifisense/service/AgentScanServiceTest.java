@@ -100,6 +100,52 @@ class AgentScanServiceTest {
         assertThat(saved.getDurationMs()).isEqualTo(4100);
     }
 
+    @Test
+    void aFailedScanKeepsTheReasonTheAgentFound() {
+        WifiScanSession saved = service.receive(KEY, new AgentScanResult(50L, "FAILED", "ADAPTER_OFF", "Wi-Fi",
+                "NETSH", false, 300, "1.9.0", null));
+
+        assertThat(saved.getStatus()).isEqualTo(ScanStatus.FAILED);
+        assertThat(saved.getFailureReason()).isEqualTo(ScanFailure.ADAPTER_OFF);
+        verifyNoInteractions(recorder);
+    }
+
+    @Test
+    void aFailureWithoutReasonIsACommandThatFailed() {
+        WifiScanSession saved = service.receive(KEY, new AgentScanResult(50L, "FAILED", null, null, null, null, null,
+                "1.9.0", null));
+
+        assertThat(saved.getFailureReason()).isEqualTo(ScanFailure.COMMAND_FAILED);
+    }
+
+    @Test
+    void anAgentCannotDeliverToAScanOfAnotherNetwork() {
+        when(scans.findByIdAndNetworkId(77L, 7L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.receive(KEY, new AgentScanResult(77L, "COMPLETED", null, null, null, null,
+                null, "1.9.0", List.of()))).isInstanceOf(ResourceNotFoundException.class);
+        verifyNoInteractions(recorder);
+    }
+
+    @Test
+    void aResultThatArrivesAfterTheTimeLimitIsRefused() {
+        when(queue.expired(running, NOW)).thenReturn(true);
+
+        assertThatThrownBy(() -> service.receive(KEY, completed(List.of())))
+                .isInstanceOf(IllegalStateException.class).hasMessageContaining("llegó tarde");
+        verifyNoInteractions(recorder);
+    }
+
+    @Test
+    void aScanCannotBeDeliveredTwice() {
+        when(recorder.record(any(), any(), any())).thenReturn(new WifiScanRecorder.Stored(0, 0));
+        service.receive(KEY, completed(List.of()));
+
+        assertThatThrownBy(() -> service.receive(KEY, completed(List.of())))
+                .isInstanceOf(IllegalStateException.class).hasMessage("Ese escaneo ya terminó.");
+        verify(recorder, times(1)).record(any(), any(), any());  // the second copy stores nothing
+    }
+
     /** A clock the test moves forward. */
     private static final class MovableClock extends Clock {
         private Instant now = NOW;
