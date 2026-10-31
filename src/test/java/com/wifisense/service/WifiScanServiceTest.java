@@ -103,4 +103,58 @@ class WifiScanServiceTest {
         assertThatThrownBy(() -> service.request("ana", 7L)).isInstanceOf(ScanLimitException.class)
                 .satisfies(e -> assertThat(((ScanLimitException) e).getRetryAfterSeconds()).isEqualTo(21));
     }
+
+    @Test
+    void thePanelShowsTheLastResultAndSaysWhenItIsOld() {
+        WifiScanSession done = scan(ScanOrigin.SCHEDULED, NOW.minus(Duration.ofHours(3)), 48L);
+        done.complete(NOW.minus(Duration.ofHours(3)), new WifiScanSession.ScanDetails("Wi-Fi", "NETSH", false, 900,
+                "1.9.0"), 2, 2);
+        when(scans.findFirstByNetworkIdOrderByRequestedAtDesc(7L)).thenReturn(Optional.of(done));
+        when(scans.findFirstByNetworkIdAndStatusOrderByFinishedAtDesc(7L, ScanStatus.COMPLETED))
+                .thenReturn(Optional.of(done));
+        when(observations.findByScan(48L)).thenReturn(List.of());
+        when(queue.nextScheduled(eq(7L), any())).thenReturn(NOW.minusSeconds(1));
+
+        NearbyNetworksResponse panel = service.nearby("ana", 7L);
+
+        assertThat(panel.agentInstalled()).isTrue();
+        assertThat(panel.agentOnline()).isTrue();
+        assertThat(panel.stale()).isTrue();
+        assertThat(panel.staleAfterMinutes()).isEqualTo(150);
+        assertThat(panel.lastCompleted().id()).isEqualTo(48L);
+        assertThat(panel.current().status()).isEqualTo("COMPLETED");
+        verify(queue).active(7L, NOW);  // an abandoned scan is closed before the panel is answered
+    }
+
+    @Test
+    void aRecentResultIsNotStaleAndANetworkWithoutScansSaysSo() {
+        when(scans.findFirstByNetworkIdOrderByRequestedAtDesc(7L)).thenReturn(Optional.empty());
+        when(scans.findFirstByNetworkIdAndStatusOrderByFinishedAtDesc(7L, ScanStatus.COMPLETED))
+                .thenReturn(Optional.empty());
+
+        NearbyNetworksResponse panel = service.nearby("ana", 7L);
+
+        assertThat(panel.stale()).isFalse();
+        assertThat(panel.current()).isNull();
+        assertThat(panel.lastCompleted()).isNull();
+        assertThat(panel.accessPoints()).isEmpty();
+    }
+
+    @Test
+    void theHistoryNeverReturnsMoreThanFifty() {
+        when(scans.findByNetworkIdOrderByRequestedAtDesc(eq(7L), any(Pageable.class))).thenReturn(List.of());
+
+        service.history("ana", 7L, 5000);
+        service.history("ana", 7L, -3);
+
+        verify(scans).findByNetworkIdOrderByRequestedAtDesc(7L, Pageable.ofSize(50));
+        verify(scans).findByNetworkIdOrderByRequestedAtDesc(7L, Pageable.ofSize(1));
+    }
+
+    @Test
+    void aScanOfAnotherNetworkIsNotFoundEvenForItsId() {
+        when(scans.findByIdAndNetworkId(99L, 7L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.detail("ana", 7L, 99L)).isInstanceOf(ResourceNotFoundException.class);
+    }
 }
