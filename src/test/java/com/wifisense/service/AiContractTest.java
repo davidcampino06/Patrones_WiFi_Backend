@@ -149,4 +149,39 @@ class AiContractTest {
         assertThat(model.path("trainedOn").isTextual()).isTrue();
         assertThat(model.path("realData").isBoolean()).isTrue();
     }
+
+    @Test
+    void theAccessPointsOfAScanTravelAsTheAiExpectsAndItsReadingIsKeptApart() throws IOException {
+        List<com.wifisense.model.WifiScanObservation> seen = List.of(
+                seen("Casa de Ana", false, "WPA2", "CCMP", 6, 35, -78, true, "Huawei"),
+                seen("Casa de Ana", false, "OPEN", null, 6, 60, -61, false, "TP-Link"),
+                seen("Vecino 2.4", false, "WPA2", "CCMP", 6, 50, null, false, null),
+                seen("Vecino B", false, "WPA2", "CCMP", 6, 44, null, false, null),
+                seen(null, true, "WPA2", "CCMP", 1, 20, null, false, null));
+
+        assertSameJson(NearbyAnalysisService.request(seen), "nearby_request.json");
+        com.wifisense.model.WifiScanSession scan = mock(com.wifisense.model.WifiScanSession.class);
+        com.wifisense.dto.NearbyAnalysisResponse read = NearbyAnalysisService.read(scan, contract("nearby_response.json"));
+        assertThat(read.facts()).isNotEmpty().allMatch(item -> item.confidence() == null);
+        assertThat(read.inferences()).isNotEmpty().allMatch(item -> item.confidence() != null);
+        assertThat(read.uncertainty()).isNotBlank();
+    }
+
+    private static com.wifisense.model.WifiScanObservation seen(String ssid, boolean hidden, String authentication,
+                                                               String cipher, int channel, int signal, Integer dbm,
+                                                               boolean connected, String vendor) {
+        com.wifisense.model.WifiScanObservation o = mock(com.wifisense.model.WifiScanObservation.class,
+                RETURNS_DEEP_STUBS);
+        when(o.getSsid()).thenReturn(ssid);
+        when(o.getAccessPoint().isHidden()).thenReturn(hidden);
+        when(o.getAccessPoint().getVendor()).thenReturn(vendor);
+        when(o.getAuthentication()).thenReturn(authentication);
+        when(o.getCipher()).thenReturn(cipher);
+        when(o.getChannel()).thenReturn(channel);
+        when(o.getBand()).thenReturn("2.4");
+        when(o.getSignalPercent()).thenReturn(signal);
+        when(o.getSignalDbm()).thenReturn(dbm);
+        when(o.isConnected()).thenReturn(connected);
+        return o;
+    }
 }
